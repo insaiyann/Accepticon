@@ -298,7 +298,7 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
             title="Download SVG"
             disabled={!svgElement}
           >
-            <Icon name="download" size={16} className="icon" />
+            <Icon name="file-code" size={16} className="icon" />
           </button>
           
           <button
@@ -307,7 +307,7 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
             title="Download PNG"
             disabled={!svgElement}
           >
-            <Icon name="download" size={16} className="icon" />
+            <Icon name="file-image" size={16} className="icon" />
           </button>
           
           <button

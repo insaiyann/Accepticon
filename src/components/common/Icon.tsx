@@ -23,7 +23,9 @@ export type IconName =
   | 'info'
   | 'warning'
   | 'error'
-  | 'success';
+  | 'success'
+  | 'file-image'
+  | 'file-code';
 
 interface IconProps {
   name: IconName;
@@ -55,7 +57,9 @@ const iconPaths: Record<IconName, string> = {
   info: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zM12 9v4M12 17h.01',
   warning: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01',
   error: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zM15 9l-6 6M9 9l6 6',
-  success: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zM9 12l2 2 4-4'
+  success: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zM9 12l2 2 4-4',
+  'file-image': 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 15s1-1 4-1 5 2 5 2v2H9z',
+  'file-code': 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13l-3.5 3.5L16 20M8 13l3.5 3.5L8 20'
 };
 
 export const Icon: React.FC<IconProps> = ({ 
