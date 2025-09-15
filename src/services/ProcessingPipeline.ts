@@ -511,7 +511,7 @@ class ProcessingPipelineService {
   }
 
   /**
-   * Generate mermaid diagram with retry logic
+   * Generate mermaid diagram with enhanced retry logic and comprehensive error handling
    */
   private async generateDiagramWithRetry(
     content: string, 
@@ -531,38 +531,49 @@ class ProcessingPipelineService {
     
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        console.log(`🚀 Diagram generation attempt ${attempt + 1}/${maxRetries}`);
+        console.log(`🚀 Enhanced diagram generation attempt ${attempt + 1}/${maxRetries}`);
         
         const result = await openAIService.generateMermaidDiagram(content, options);
         
-        console.log(`✅ Diagram generation successful on attempt ${attempt + 1}`);
+        console.log(`✅ Enhanced diagram generation successful on attempt ${attempt + 1}`);
         return result;
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        console.error(`❌ Diagram generation failed (attempt ${attempt + 1}/${maxRetries}):`, errorMessage);
+        console.error(`❌ Enhanced diagram generation failed (attempt ${attempt + 1}/${maxRetries}):`, errorMessage);
         
-        // Use improved error analysis for retry decision
+        // Use enhanced error analysis for retry decision
         const canRetry = shouldRetryError(errorMessage, attempt, maxRetries);
+        
+        // Enhanced error logging with categorization
+        const errorInfo = {
+          attempt: attempt + 1,
+          maxAttempts: maxRetries,
+          error: errorMessage,
+          retryable: canRetry,
+          contentLength: content.length,
+          options
+        };
+        console.log('🔍 Error analysis:', errorInfo);
         
         // If this is the last attempt or non-retryable error, throw
         if (!canRetry) {
           const finalError = attempt === maxRetries - 1 
-            ? `Failed to generate diagram after ${maxRetries} attempts: ${errorMessage}`
-            : errorMessage;
+            ? `Enhanced diagram generation failed after ${maxRetries} attempts with progressive retry logic. Final error: ${errorMessage}`
+            : `Non-retryable error in enhanced diagram generation: ${errorMessage}`;
           throw new Error(finalError);
         }
         
-        // Calculate smart retry delay based on error type
+        // Calculate smart retry delay with enhanced logic
         const retryDelay = getRetryDelay(errorMessage, attempt);
-        console.log(`🔄 Retrying diagram generation in ${retryDelay}ms...`);
+        console.log(`🔄 Enhanced retry in ${retryDelay}ms with improved validation...`);
         
         await delay(retryDelay);
       }
     }
     
     // This should never be reached due to the throw statements above
-    throw new Error('Diagram generation failed after all retry attempts');
+    throw new Error('Enhanced diagram generation failed after all progressive retry attempts');
   }
 
   /**

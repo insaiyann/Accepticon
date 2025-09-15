@@ -46,22 +46,47 @@ export function analyzeError(error: Error | string): ErrorInfo {
     };
   }
 
-  // Parsing errors (Mermaid syntax)
+  // Parsing errors (Mermaid syntax) - Enhanced detection
   if (lowerMessage.includes('parse error') ||
       lowerMessage.includes('syntax error') ||
       lowerMessage.includes('expecting') ||
-      lowerMessage.includes('diagram syntax error')) {
+      lowerMessage.includes('diagram syntax error') ||
+      lowerMessage.includes('mermaid') ||
+      lowerMessage.includes('unclosed') ||
+      lowerMessage.includes('unmatched') ||
+      lowerMessage.includes('truncated') ||
+      /\[\w{1,4}\]|\{\w{1,4}[^}]*$/.test(errorMessage)) { // Detect truncated labels
+    
+    // Enhanced analysis for Mermaid-specific issues
+    const isTruncationError = /\[[\w]{1,4}\]|\{[\w]{1,4}[^}]*$/.test(errorMessage);
+    const isUnclosedError = lowerMessage.includes('unclosed') || lowerMessage.includes('unmatched');
+    const isSyntaxError = lowerMessage.includes('expecting') || lowerMessage.includes('parse error');
+    
+    const specificSuggestions = [
+      'The AI will retry with enhanced syntax validation',
+      'Smart auto-fixing will attempt to correct common issues',
+      'Fallback diagram will be generated if needed'
+    ];
+    
+    if (isTruncationError) {
+      specificSuggestions.unshift('Detected truncated node labels - will use complete words');
+    }
+    if (isUnclosedError) {
+      specificSuggestions.unshift('Detected unclosed brackets/braces - will auto-complete');
+    }
+    if (isSyntaxError) {
+      specificSuggestions.unshift('Detected syntax errors - will use stricter validation');
+    }
+    
     return {
       type: 'parsing',
       message: errorMessage,
-      userMessage: 'Diagram syntax issue detected',
+      userMessage: isTruncationError ? 'Diagram generation issues with incomplete labels' :
+                   isUnclosedError ? 'Diagram syntax has unclosed elements' :
+                   'Diagram syntax issue detected',
       actionable: true,
       retryable: true,
-      suggestions: [
-        'The AI will retry with improved syntax',
-        'This often resolves automatically',
-        'Try regenerating the diagram if it persists'
-      ]
+      suggestions: specificSuggestions
     };
   }
 
