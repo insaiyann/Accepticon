@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import MessageComponent from '../common/MessageComponent';
+import { Icon } from '../common/Icon';
 import { useMessages, useAudioRecorder } from '../../hooks/useMessages';
 import { useProcessingPipelineContext } from '../../hooks/useProcessingPipelineContext';
 import type { AudioMessage } from '../../types/Message';
@@ -225,7 +226,9 @@ export const InputPanel: React.FC = () => {
             ))
           ) : (
             <div className="messages-empty">
-              <div className="messages-empty-icon">💬</div>
+              <div className="messages-empty-icon">
+                <Icon name="text" size={32} className="icon" />
+              </div>
               <p>No messages yet</p>
               <p style={{ fontSize: '0.9rem' }}>
                 Start by typing a message or recording audio
@@ -249,6 +252,7 @@ export const InputPanel: React.FC = () => {
             onClick={handleSendText}
             disabled={!textInput.trim() || recordingState.isRecording}
           >
+            <Icon name="add" size={16} className="icon" />
             Send
           </button>
           <button 
@@ -257,7 +261,11 @@ export const InputPanel: React.FC = () => {
             disabled={!audioSupported}
             title={audioSupported ? 'Record audio message' : 'Audio recording not supported'}
           >
-            <span>{recordingState.isRecording ? '⏹️' : '🎤'}</span>
+            <Icon 
+              name={recordingState.isRecording ? 'stop' : 'microphone'} 
+              size={16} 
+              className="icon" 
+            />
             <span>{recordingState.isRecording ? 'Stop' : 'Record'}</span>
           </button>
         </div>
@@ -269,6 +277,7 @@ export const InputPanel: React.FC = () => {
             onClick={handleGenerateDiagram}
             disabled={!canGenerate}
           >
+            <Icon name="diagram" size={16} className="icon" />
             {pipelineProcessing ? 'Generating...' : 'Generate Mermaid Diagram'}
           </button>
           <p className="generate-info">

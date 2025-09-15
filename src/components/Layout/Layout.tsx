@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import ConfigurationPanel from '../ConfigurationPanel/ConfigurationPanel';
 import { useProcessingPipelineContext } from '../../hooks/useProcessingPipelineContext';
+import { Icon } from '../common/Icon';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -26,7 +27,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     <div className="app">
       <header className="app-header">
         <div className="app-logo">
-          <div className="logo-icon">📋</div>
+          <div className="logo-icon">
+            <Icon name="diagram" size={24} className="icon" />
+          </div>
           <h1>AcceptiCon</h1>
         </div>
         <div className="header-controls">
@@ -41,7 +44,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             onClick={() => setIsConfigOpen(true)}
             title="Azure Configuration"
           >
-            ⚙️
+            <Icon name="settings" size={16} className="icon" />
           </button>
         </div>
       </header>
