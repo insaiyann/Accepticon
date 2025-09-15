@@ -21,6 +21,27 @@
   border-radius: 0;
   box-shadow: none;
   border: none;
+  background: var(--nb-card-bg);
+}
+
+/* Ensure proper theming in fullscreen mode */
+.mermaid-viewer.fullscreen .mermaid-header {
+  background: var(--nb-card-bg);
+  color: var(--nb-text-primary);
+}
+
+.mermaid-viewer.fullscreen .mermaid-content {
+  background: var(--nb-card-bg);
+}
+
+.mermaid-viewer.fullscreen .mermaid-title {
+  color: var(--nb-text-primary);
+}
+
+.mermaid-viewer.fullscreen .control-button {
+  background: var(--nb-card-bg);
+  color: var(--nb-text-primary);
+  border-color: var(--nb-border-light);
 }
 
 /* Header */
