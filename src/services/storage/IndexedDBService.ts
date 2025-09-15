@@ -157,12 +157,13 @@ class IndexedDBService {
   }
 
   /**
-   * Get a specific message by ID
+   * Get a specific message by ID (checks both text and audio stores)
    */
   async getMessage(id: string): Promise<Message | null> {
     await this.ensureInitialized();
 
-    return new Promise((resolve, reject) => {
+    // First try text messages store
+    const textMessage = await new Promise<Message | null>((resolve, reject) => {
       const transaction = this.db!.transaction([STORES.MESSAGES], 'readonly');
       const store = transaction.objectStore(STORES.MESSAGES);
       const request = store.get(id);
@@ -172,19 +173,42 @@ class IndexedDBService {
       };
 
       request.onerror = () => {
-        console.error('Failed to get message:', request.error);
-        reject(new Error('Failed to get message'));
+        console.error('Failed to get text message:', request.error);
+        reject(new Error('Failed to get text message'));
       };
     });
+
+    if (textMessage) {
+      return textMessage;
+    }
+
+    // If not found in text messages, try audio messages store
+    const audioMessage = await new Promise<Message | null>((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.AUDIO_MESSAGES], 'readonly');
+      const store = transaction.objectStore(STORES.AUDIO_MESSAGES);
+      const request = store.get(id);
+
+      request.onsuccess = () => {
+        resolve(request.result || null);
+      };
+
+      request.onerror = () => {
+        console.error('Failed to get audio message:', request.error);
+        reject(new Error('Failed to get audio message'));
+      };
+    });
+
+    return audioMessage;
   }
 
   /**
-   * Update a message with new data
+   * Update a message with new data (checks both text and audio stores)
    */
   async updateMessage(id: string, updates: Partial<Message>): Promise<void> {
     await this.ensureInitialized();
 
-    return new Promise((resolve, reject) => {
+    // First try to update in text messages store
+    const textUpdateResult = await new Promise<boolean>((resolve, reject) => {
       const transaction = this.db!.transaction([STORES.MESSAGES], 'readwrite');
       const store = transaction.objectStore(STORES.MESSAGES);
       const getRequest = store.get(id);
@@ -194,14 +218,39 @@ class IndexedDBService {
         if (message) {
           const updatedMessage = { ...message, ...updates };
           const putRequest = store.put(updatedMessage);
-          putRequest.onsuccess = () => resolve();
-          putRequest.onerror = () => reject(new Error('Failed to update message'));
+          putRequest.onsuccess = () => resolve(true);
+          putRequest.onerror = () => reject(new Error('Failed to update text message'));
         } else {
-          reject(new Error('Message not found'));
+          resolve(false); // Message not found in this store
         }
       };
 
-      getRequest.onerror = () => reject(new Error('Failed to get message for update'));
+      getRequest.onerror = () => reject(new Error('Failed to get text message for update'));
+    });
+
+    if (textUpdateResult) {
+      return; // Successfully updated in text store
+    }
+
+    // If not found in text store, try audio messages store
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.AUDIO_MESSAGES], 'readwrite');
+      const store = transaction.objectStore(STORES.AUDIO_MESSAGES);
+      const getRequest = store.get(id);
+
+      getRequest.onsuccess = () => {
+        const message = getRequest.result;
+        if (message) {
+          const updatedMessage = { ...message, ...updates };
+          const putRequest = store.put(updatedMessage);
+          putRequest.onsuccess = () => resolve();
+          putRequest.onerror = () => reject(new Error('Failed to update audio message'));
+        } else {
+          reject(new Error('Message not found in either store'));
+        }
+      };
+
+      getRequest.onerror = () => reject(new Error('Failed to get audio message for update'));
     });
   }
 
