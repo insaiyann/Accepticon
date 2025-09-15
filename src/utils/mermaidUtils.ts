@@ -81,12 +81,10 @@ export function validateAndFixMermaidSyntax(code: string): {
     return { isValid: false, fixedCode: generateFallbackDiagram('Empty content'), issues };
   }
   
-  // Fix common syntax issues
-  const originalCode = fixedCode;
-  
   // 1. Fix single quotes in labels
+  const beforeQuoteFix = fixedCode;
   fixedCode = fixedCode.replace(/\[([^'\]]*)'([^'\]]*)\]/g, '[$1"$2"]');
-  if (fixedCode !== originalCode) {
+  if (fixedCode !== beforeQuoteFix) {
     issues.push('Fixed single quotes in labels');
   }
   
@@ -97,10 +95,92 @@ export function validateAndFixMermaidSyntax(code: string): {
     issues.push('Removed problematic "arc" keywords');
   }
   
-  // 3. Fix arrow spacing
-  fixedCode = fixedCode.replace(/-->/g, ' --> ').replace(/\s+-->\s+/g, ' --> ');
+  // 3. Fix incomplete/unclosed node definitions - CRITICAL FIX
+  const beforeNodeFix = fixedCode;
   
-  // 4. Ensure proper diagram declaration
+  // Fix unclosed square brackets [
+  fixedCode = fixedCode.replace(/(\w+)\[([^\]]*?)(?=\s*-->|\s*$|\s*\|)/g, (_, nodeId, content) => {
+    return `${nodeId}[${content}]`;
+  });
+  
+  // Fix unclosed curly braces {
+  fixedCode = fixedCode.replace(/(\w+)\{([^}]*?)(?=\s*-->|\s*$|\s*\|)/g, (_, nodeId, content) => {
+    return `${nodeId}{${content}}`;
+  });
+  
+  // Fix unclosed parentheses (
+  fixedCode = fixedCode.replace(/(\w+)\(([^)]*?)(?=\s*-->|\s*$|\s*\|)/g, (_, nodeId, content) => {
+    return `${nodeId}(${content})`;
+  });
+  
+  if (fixedCode !== beforeNodeFix) {
+    issues.push('Fixed unclosed node definitions');
+  }
+  
+  // 4. Fix truncated words and clean up labels
+  const beforeLabelFix = fixedCode;
+  
+  // Replace truncated/partial words with complete words
+  fixedCode = fixedCode.replace(/\[([^\]]*)\]/g, (_, content) => {
+    let cleanContent = content.trim();
+    
+    // Remove any trailing incomplete characters
+    cleanContent = cleanContent.replace(/[^\w\s-.,!?:()]$/, '');
+    
+    // If content is too short or appears truncated, provide generic labels
+    if (cleanContent.length < 2 || /^[A-Za-z]{1,3}$/.test(cleanContent)) {
+      // Extract context from surrounding code for better labeling
+      if (content.toLowerCase().includes('start') || content.toLowerCase().includes('begin')) {
+        cleanContent = 'Start';
+      } else if (content.toLowerCase().includes('end') || content.toLowerCase().includes('finish')) {
+        cleanContent = 'End';
+      } else if (content.toLowerCase().includes('proc') || content.toLowerCase().includes('process')) {
+        cleanContent = 'Process';
+      } else if (content.toLowerCase().includes('park') || content.toLowerCase().includes('car')) {
+        cleanContent = 'Parking';
+      } else {
+        cleanContent = 'Step';
+      }
+    }
+    
+    // Ensure label is reasonable length (max 30 chars)
+    if (cleanContent.length > 30) {
+      cleanContent = cleanContent.substring(0, 27) + '...';
+    }
+    
+    return `[${cleanContent}]`;
+  });
+  
+  // Similar fix for curly braces
+  fixedCode = fixedCode.replace(/\{([^}]*)\}/g, (_, content) => {
+    let cleanContent = content.trim();
+    cleanContent = cleanContent.replace(/[^\w\s-.,!?:()]$/, '');
+    
+    if (cleanContent.length < 2 || /^[A-Za-z]{1,3}$/.test(cleanContent)) {
+      cleanContent = 'Decision';
+    }
+    
+    if (cleanContent.length > 30) {
+      cleanContent = cleanContent.substring(0, 27) + '...';
+    }
+    
+    return `{${cleanContent}}`;
+  });
+  
+  if (fixedCode !== beforeLabelFix) {
+    issues.push('Fixed truncated or invalid node labels');
+  }
+  
+  // 5. Fix arrow spacing and syntax
+  const beforeArrowFix = fixedCode;
+  fixedCode = fixedCode.replace(/-->/g, ' --> ').replace(/\s+-->\s+/g, ' --> ');
+  fixedCode = fixedCode.replace(/->/g, ' --> ').replace(/\s+-->\s+/g, ' --> '); // Convert single arrows
+  
+  if (fixedCode !== beforeArrowFix) {
+    issues.push('Fixed arrow syntax and spacing');
+  }
+  
+  // 6. Ensure proper diagram declaration
   const lines = fixedCode.split('\n');
   const firstLine = lines[0]?.trim() || '';
   const validStarts = ['flowchart', 'sequenceDiagram', 'stateDiagram', 'classDiagram', 'gantt', 'graph'];
@@ -110,8 +190,20 @@ export function validateAndFixMermaidSyntax(code: string): {
     issues.push('Added missing diagram declaration');
   }
   
-  // 5. Basic structure validation
-  const hasNodes = /[A-Z]\d*\[/.test(fixedCode) || /[A-Z]\d*\(/.test(fixedCode) || /participant/.test(fixedCode);
+  // 7. Validate node IDs are simple and clean
+  const beforeIdFix = fixedCode;
+  fixedCode = fixedCode.replace(/([^a-zA-Z0-9_])([a-zA-Z0-9_]+)([[{(])/g, (_, prefix, nodeId, bracket) => {
+    // Ensure node IDs are clean (only letters, numbers, underscore)
+    const cleanId = nodeId.replace(/[^a-zA-Z0-9_]/g, '');
+    return `${prefix}${cleanId || 'Node'}${bracket}`;
+  });
+  
+  if (fixedCode !== beforeIdFix) {
+    issues.push('Cleaned node IDs');
+  }
+  
+  // 8. Final structure validation
+  const hasNodes = /[A-Z]\d*[[{(]/.test(fixedCode) || /participant/.test(fixedCode);
   const hasConnections = /-->|->|-->>|->>/.test(fixedCode);
   
   if (!hasNodes && !hasConnections) {
@@ -119,6 +211,38 @@ export function validateAndFixMermaidSyntax(code: string): {
     return { 
       isValid: false, 
       fixedCode: generateFallbackDiagram('Invalid structure'), 
+      issues 
+    };
+  }
+  
+  // 9. Check for critical syntax errors that would cause parsing to fail
+  const criticalErrors = [];
+  
+  // Check for unmatched brackets
+  const openSquare = (fixedCode.match(/\[/g) || []).length;
+  const closeSquare = (fixedCode.match(/\]/g) || []).length;
+  if (openSquare !== closeSquare) {
+    criticalErrors.push('Unmatched square brackets');
+  }
+  
+  const openCurly = (fixedCode.match(/\{/g) || []).length;
+  const closeCurly = (fixedCode.match(/\}/g) || []).length;
+  if (openCurly !== closeCurly) {
+    criticalErrors.push('Unmatched curly braces');
+  }
+  
+  const openParen = (fixedCode.match(/\(/g) || []).length;
+  const closeParen = (fixedCode.match(/\)/g) || []).length;
+  if (openParen !== closeParen) {
+    criticalErrors.push('Unmatched parentheses');
+  }
+  
+  // If critical errors exist, use fallback
+  if (criticalErrors.length > 0) {
+    issues.push(...criticalErrors);
+    return { 
+      isValid: false, 
+      fixedCode: generateFallbackDiagram('Syntax errors detected'), 
       issues 
     };
   }

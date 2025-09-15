@@ -245,29 +245,72 @@ ${content}
 """
 
 CRITICAL REQUIREMENTS - Follow these rules EXACTLY:
-1. Generate VALID Mermaid syntax only - test your syntax before responding
-2. Use simple node IDs: A, B, C, User, System (no spaces, no special chars except numbers)
-3. Use double quotes for labels with spaces: A["User Message"] or square brackets A[User Message]
-4. Never use single quotes (') anywhere in the diagram
-5. Start with proper diagram declaration: flowchart TD, sequenceDiagram, stateDiagram-v2, etc.
-6. Use correct arrows: --> for flowcharts, ->> for sequence diagrams
-7. Keep it simple and readable
 
-EXAMPLE VALID SYNTAX:
+1. SYNTAX VALIDATION: Your output must be VALID Mermaid syntax that will parse without errors
+2. NODE IDS: Use only simple IDs like A, B, C, User, System (NO spaces, NO special chars except numbers)
+3. NODE LABELS: 
+   - Use square brackets [Complete Label Text] or double quotes "Complete Label Text"
+   - NEVER use single quotes (') anywhere
+   - ALWAYS close brackets completely: A[Start] NOT A[Star
+   - Keep labels under 30 characters
+   - Use complete words, NOT truncated: [Process] NOT [Proces], [Parking] NOT [Parki]
+4. DIAGRAM DECLARATION: Always start with proper type: flowchart TD, sequenceDiagram, stateDiagram-v2
+5. ARROWS: Use --> for flowcharts, ->> for sequence diagrams, proper spacing
+6. COMPLETE SYNTAX: Every bracket, brace, parenthesis must be properly closed
+7. NO FORBIDDEN KEYWORDS: Never use 'arc', 'expecting', or invalid Mermaid syntax
+
+MANDATORY SYNTAX EXAMPLES:
+
+FLOWCHART (most common):
+\`\`\`mermaid
 flowchart TD
-    A[Start] --> B{Is Valid}
-    B -->|Yes| C[Success]
-    B -->|No| D[Error]
+    A[Start Process] --> B{Is Valid}
+    B -->|Yes| C[Success State]
+    B -->|No| D[Error Handler]
+    C --> E[End]
+    D --> E
+\`\`\`
+
+SEQUENCE (for conversations/interactions):
+\`\`\`mermaid
+sequenceDiagram
+    participant User as User
+    participant System as System
+    User->>System: Send Request
+    System-->>User: Return Response
+    Note over User,System: Process Complete
+\`\`\`
+
+FORBIDDEN PATTERNS - DO NOT USE:
+❌ A[Parki] (truncated words)
+❌ B{Proces (unclosed braces)
+❌ C['Label'] (single quotes)
+❌ arc TD (invalid keywords)
+❌ Node with spaces[Label] (invalid node ID)
+
+REQUIRED PATTERNS - ALWAYS USE:
+✅ A[Parking] (complete words)
+✅ B{Process} (properly closed)
+✅ C["Label Text"] (double quotes if needed)
+✅ flowchart TD (proper declaration)
+✅ SimpleNode[Label] (clean node IDs)
 
 Please provide your response in this EXACT format:
 DIAGRAM_TYPE: [type]
 TITLE: [title if applicable]
 MERMAID_CODE:
 \`\`\`mermaid
-[your valid mermaid code here]
+[your COMPLETE and VALID mermaid code here - every bracket must be closed]
 \`\`\`
 
-Remember: The code must be syntactically correct and render without errors.
+FINAL CHECK: Before responding, verify:
+- All brackets [ ] are properly closed
+- All braces { } are properly closed  
+- All parentheses ( ) are properly closed
+- No truncated words in labels
+- Valid node IDs (simple alphanumeric)
+- Proper diagram declaration
+- No single quotes anywhere
     `.trim();
   }
 
@@ -276,58 +319,65 @@ Remember: The code must be syntactically correct and render without errors.
    */
   private getSystemPrompt(): string {
     return `
-You are an expert at creating Mermaid diagrams. Your task is to convert text content into clear, accurate, and visually appealing Mermaid diagrams.
+You are an expert Mermaid diagram generator. Your ONLY job is to create syntactically perfect Mermaid diagrams that will render without any parsing errors.
 
-CRITICAL: Follow Mermaid syntax rules EXACTLY. Common mistakes to avoid:
-- Never use single quotes (') in node IDs or labels - use double quotes (") or no quotes
-- Node IDs must be simple (A, B, C, or A1, B2, etc.) - no spaces, no special characters except numbers
-- Labels go in square brackets [Label] or parentheses (Label) or quotes "Label"
-- Arrows: --> for flowcharts, ->> for sequence diagrams
-- Always start with proper diagram declaration
+CRITICAL SUCCESS CRITERIA:
+- Every bracket [ ] must be properly closed - NO exceptions
+- Every brace { } must be properly closed - NO exceptions  
+- Every parenthesis ( ) must be properly closed - NO exceptions
+- NO truncated words in labels (e.g., "Proces" should be "Process", "Parki" should be "Parking")
+- Node IDs must be simple alphanumeric (A, B, C, Node1, User) - NO spaces or special characters
+- NEVER use single quotes (') - always use double quotes (") or no quotes
+- ALWAYS include proper diagram declaration (flowchart TD, sequenceDiagram, etc.)
 
-VALID Mermaid Examples:
+COMMON FATAL ERRORS TO AVOID:
+❌ A[Parki] --> B{Proces (truncated words + unclosed brace)
+❌ Node with spaces[Label] (invalid node ID)
+❌ A['Label'] (single quotes)
+❌ arc TD (invalid keywords)
+❌ Missing diagram declaration
 
-FLOWCHART:
+REQUIRED VALID PATTERNS:
+✅ A[Parking] --> B{Process} (complete words, closed brackets/braces)
+✅ User[Complete Label] --> System{Decision Point} (proper node IDs)
+✅ flowchart TD (proper declaration)
+
+VALIDATION CHECKLIST - Before sending response:
+1. Count opening brackets [ - must equal closing brackets ]
+2. Count opening braces { - must equal closing braces }
+3. Count opening parentheses ( - must equal closing parentheses )
+4. Check all labels for complete words (no truncation)
+5. Verify simple node IDs (A, B, User, System, etc.)
+6. Confirm proper diagram declaration exists
+7. Ensure no single quotes anywhere
+
+DIAGRAM TYPE GUIDELINES:
+- FLOWCHART: For processes, decisions, workflows (most common)
+- SEQUENCE: For conversations, interactions, time-based flows
+- STATE: For status changes, lifecycle diagrams
+
+Example Perfect Flowchart:
 \`\`\`mermaid
 flowchart TD
-    A[Start] --> B{Decision}
-    B -->|Yes| C[Action 1]
-    B -->|No| D[Action 2]
-    C --> E[End]
-    D --> E
+    A[Start Process] --> B{Valid Input}
+    B -->|Yes| C[Process Data]
+    B -->|No| D[Show Error]
+    C --> E[Save Results]
+    D --> A
+    E --> F[End]
 \`\`\`
 
-SEQUENCE:
+Example Perfect Sequence:
 \`\`\`mermaid
 sequenceDiagram
-    participant A as User
-    participant B as System
-    A->>B: Request
-    B-->>A: Response
+    participant User as User
+    participant App as Application
+    User->>App: Submit Request
+    App-->>User: Return Response
+    Note over User,App: Transaction Complete
 \`\`\`
 
-STATE:
-\`\`\`mermaid
-stateDiagram-v2
-    [*] --> State1
-    State1 --> State2
-    State2 --> [*]
-\`\`\`
-
-Guidelines:
-- Choose the most appropriate diagram type (flowchart, sequenceDiagram, stateDiagram-v2, classDiagram, etc.)
-- Use simple node IDs (A, B, C, User, System, etc.)
-- Put descriptive text in brackets [Text] or quotes "Text"
-- Ensure logical flow and hierarchy
-- Test your syntax mentally before responding
-- Make diagrams that are easy to understand at a glance
-
-FORBIDDEN SYNTAX:
-- Do NOT use: arc, expecting keywords, complex node IDs with spaces
-- Do NOT use single quotes in any context
-- Do NOT create invalid connections
-
-Always respond with valid Mermaid syntax that will render properly.
+Your diagrams must be production-ready and error-free. A single syntax error makes the entire diagram fail.
     `.trim();
   }
 
@@ -366,19 +416,84 @@ Always respond with valid Mermaid syntax that will render properly.
       throw new Error('No mermaid code found in response');
     }
 
-    // Use advanced validation and cleanup
-    const validationResult = validateAndFixMermaidSyntax(mermaidCode);
-    if (validationResult.issues.length > 0) {
-      console.log('🔧 Fixed Mermaid syntax issues:', validationResult.issues);
+    // CRITICAL: Pre-validate for common issues before attempting to use
+    const preValidationIssues = this.preValidateMermaidCode(mermaidCode);
+    if (preValidationIssues.length > 0) {
+      console.log('🚨 Pre-validation found critical issues:', preValidationIssues);
+      console.log('🔧 Original code:', mermaidCode);
+      
+      // Use advanced validation and cleanup
+      const validationResult = validateAndFixMermaidSyntax(mermaidCode);
+      console.log('🔧 Fixed code:', validationResult.fixedCode);
+      console.log('🔧 All fixes applied:', validationResult.issues);
+      
+      mermaidCode = validationResult.fixedCode;
+    } else {
+      // Still run through validation for minor cleanup
+      const validationResult = validateAndFixMermaidSyntax(mermaidCode);
+      if (validationResult.issues.length > 0) {
+        console.log('🔧 Minor fixes applied:', validationResult.issues);
+      }
+      mermaidCode = validationResult.fixedCode;
     }
-    
-    mermaidCode = validationResult.fixedCode;
 
     return {
       mermaidCode,
       diagramType,
       title: title || undefined
     };
+  }
+
+  /**
+   * Pre-validate mermaid code for critical syntax issues
+   */
+  private preValidateMermaidCode(code: string): string[] {
+    const issues: string[] = [];
+    
+    // Check for truncated words in labels (common AI error)
+    const truncatedWords = code.match(/\[[A-Za-z]{1,4}\]|\{[A-Za-z]{1,4}\}/g);
+    if (truncatedWords) {
+      issues.push(`Detected likely truncated words: ${truncatedWords.join(', ')}`);
+    }
+    
+    // Check for unclosed brackets
+    const openSquare = (code.match(/\[/g) || []).length;
+    const closeSquare = (code.match(/\]/g) || []).length;
+    if (openSquare !== closeSquare) {
+      issues.push(`Unmatched square brackets: ${openSquare} open, ${closeSquare} close`);
+    }
+    
+    const openCurly = (code.match(/\{/g) || []).length;
+    const closeCurly = (code.match(/\}/g) || []).length;
+    if (openCurly !== closeCurly) {
+      issues.push(`Unmatched curly braces: ${openCurly} open, ${closeCurly} close`);
+    }
+    
+    const openParen = (code.match(/\(/g) || []).length;
+    const closeParen = (code.match(/\)/g) || []).length;
+    if (openParen !== closeParen) {
+      issues.push(`Unmatched parentheses: ${openParen} open, ${closeParen} close`);
+    }
+    
+    // Check for single quotes (forbidden)
+    if (code.includes("'")) {
+      issues.push('Contains forbidden single quotes');
+    }
+    
+    // Check for proper diagram declaration
+    const lines = code.split('\n');
+    const firstLine = lines[0]?.trim() || '';
+    const validStarts = ['flowchart', 'sequenceDiagram', 'stateDiagram', 'classDiagram', 'gantt', 'graph'];
+    if (!validStarts.some(start => firstLine.startsWith(start))) {
+      issues.push('Missing or invalid diagram type declaration');
+    }
+    
+    // Check for problematic keywords
+    if (/\barc\s+/i.test(code)) {
+      issues.push('Contains problematic "arc" keyword');
+    }
+    
+    return issues;
   }
 
   /**
