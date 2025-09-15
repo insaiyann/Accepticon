@@ -59,17 +59,30 @@ class AzureSpeechService {
       throw new Error('Speech service not initialized. Call initialize() first.');
     }
 
+    console.log(`🎙️ SpeechService: Starting transcription of audio blob:`, {
+      size: audioBlob.size,
+      type: audioBlob.type,
+      configExists: !!this.speechConfig
+    });
+
     return new Promise((resolve, reject) => {
       try {
+        console.log(`📖 SpeechService: Reading audio blob as ArrayBuffer...`);
         // Convert blob to ArrayBuffer
         const reader = new FileReader();
         reader.onload = () => {
+          console.log(`✅ SpeechService: Successfully read audio blob, processing buffer...`);
           const arrayBuffer = reader.result as ArrayBuffer;
+          console.log(`📊 SpeechService: ArrayBuffer size: ${arrayBuffer.byteLength} bytes`);
           this.processAudioBuffer(arrayBuffer, resolve, reject);
         };
-        reader.onerror = () => reject(new Error('Failed to read audio blob'));
+        reader.onerror = () => {
+          console.error(`❌ SpeechService: Failed to read audio blob`);
+          reject(new Error('Failed to read audio blob'));
+        };
         reader.readAsArrayBuffer(audioBlob);
       } catch (error) {
+        console.error(`❌ SpeechService: Exception during transcription setup:`, error);
         reject(new Error(`Failed to process audio: ${error instanceof Error ? error.message : 'Unknown error'}`));
       }
     });
@@ -84,16 +97,23 @@ class AzureSpeechService {
     reject: (error: Error) => void
   ): void {
     try {
+      console.log(`🔄 SpeechService: Processing audio buffer of size ${arrayBuffer.byteLength} bytes`);
+      
       // Create audio config from array buffer
       const pushStream = sdk.AudioInputStream.createPushStream();
       const audioData = new Uint8Array(arrayBuffer);
+      console.log(`📤 SpeechService: Writing audio data to push stream...`);
       pushStream.write(audioData.buffer);
       pushStream.close();
+      console.log(`✅ SpeechService: Audio stream created and closed`);
 
       const audioConfig = sdk.AudioConfig.fromStreamInput(pushStream);
+      console.log(`🔧 SpeechService: Audio config created`);
       
       // Create recognizer
+      console.log(`🎯 SpeechService: Creating speech recognizer...`);
       this.recognizer = new sdk.SpeechRecognizer(this.speechConfig!, audioConfig);
+      console.log(`✅ SpeechService: Speech recognizer created`);
 
       let transcriptionText = '';
       let confidence = 0;
