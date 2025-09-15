@@ -88,6 +88,7 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
 
       try {
         console.log(`🎯 Rendering diagram attempt ${attemptNumber + 1}/${retryState.maxAttempts}`);
+        console.log('🕵️‍♂️ Initial mermaidCode prop:', mermaidCode);
         
         // Pre-process and clean the mermaid code
         let cleanedCode = mermaidCode;
@@ -101,14 +102,15 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
           // Fix spacing around arrows
           .replace(/-->/g, ' --> ')
           .replace(/-->>/g, ' -->> ')
-          // Clean up any multiple spaces
-          .replace(/\s+/g, ' ')
+          // Clean up multiple spaces within lines (but preserve newlines)
+          .replace(/[^\S\n]+/g, ' ')
           .trim();
         
-        console.log('🧹 Cleaned mermaid code:', cleanedCode);
+        console.log('🧹 After initial cleaning:', cleanedCode);
         
         // Validate mermaid syntax with detailed error handling
         try {
+          console.log('📝 Validating with mermaid.parse():', cleanedCode);
           await mermaid.parse(cleanedCode);
           console.log('✅ Mermaid syntax validation passed');
         } catch (parseError) {
@@ -131,14 +133,17 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
               .filter(line => line.trim() && !line.includes('expecting'))
               .join('\n');
             
+            console.log('🔧 After advanced cleanup:', cleanedCode);
+            
             // If still problematic, create a smart fallback
             if (cleanedCode.split('\n').length < 2) {
               // Extract some context for the fallback
               const contextLines = mermaidCode.split('\n').slice(0, 3).join(' ');
               cleanedCode = generateFallbackDiagram(contextLines || 'No content available');
-              console.log('🚨 Using smart fallback diagram due to parse errors');
+              console.log('🚨 Using smart fallback diagram. Fallback code:', cleanedCode);
             }
             
+            console.log('📝 Re-validating with mermaid.parse() after advanced cleanup:', cleanedCode);
             await mermaid.parse(cleanedCode);
             console.log('✅ Advanced cleanup successful');
           } else {
@@ -148,6 +153,7 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
         
         // Use cleaned code for rendering
         const finalCode = cleanedCode;
+        console.log('🎨 Final code for rendering:', finalCode);
         
         // Clear previous content
         if (containerRef.current) {
