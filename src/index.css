@@ -1,43 +1,53 @@
 :root {
   /* NotebookLM Design System Colors */
-  --nb-primary-bg: #EDEFFA;
-  --nb-card-bg: #FFFFFF;
-  --nb-text-primary: #49454F;
-  --nb-text-secondary: #1D1B20;
+  --nb-primary-bg: #edeffa;
+  --nb-card-bg: #ffffff;
+  --nb-text-primary: #49454f;
+  --nb-text-secondary: #1d1b20;
   --nb-text-muted: #757575;
-  --nb-text-disabled: #6D6D6D;
-  --nb-border-light: #CAC4D0;
-  --nb-border-medium: #DDE1EB;
-  
+  --nb-text-disabled: #6d6d6d;
+  --nb-border-light: #cac4d0;
+  --nb-border-medium: #dde1eb;
+
   /* Enhanced Color Palette */
-  --nb-accent-blue: #4C62FF;
-  --nb-accent-purple: #6750A4;
-  --nb-accent-teal: #0957D0;
-  --nb-accent-orange: #FF6B35;
-  --nb-accent-pink: #E91E63;
-  --nb-success: #4CAF50;
-  --nb-warning: #FABD05;
-  --nb-error: #DC3545;
-  
+  --nb-accent-blue: #4c62ff;
+  --nb-accent-purple: #6750a4;
+  --nb-accent-teal: #0957d0;
+  --nb-accent-orange: #ff6b35;
+  --nb-accent-pink: #e91e63;
+  --nb-success: #4caf50;
+  --nb-warning: #fabd05;
+  --nb-error: #dc3545;
+
   /* Gradient Colors */
-  --nb-gradient-primary: linear-gradient(135deg, #EAECFF 0%, #E9F0FB 27%, #E8F3F5 44%, #E7F8F1 60%, #E8FFE8 100%);
-  --nb-gradient-accent: linear-gradient(135deg, #6750A4 0%, #4C62FF 100%);
-  --nb-gradient-surface: linear-gradient(145deg, #FFFFFF 0%, #F8F9FF 100%);
-  
+  --nb-gradient-primary: linear-gradient(
+    135deg,
+    #eaecff 0%,
+    #e9f0fb 27%,
+    #e8f3f5 44%,
+    #e7f8f1 60%,
+    #e8ffe8 100%
+  );
+  --nb-gradient-accent: linear-gradient(135deg, #6750a4 0%, #4c62ff 100%);
+  --nb-gradient-surface: linear-gradient(145deg, #ffffff 0%, #f8f9ff 100%);
+
   /* Shadow System */
   --nb-shadow-sm: 0 1px 2px rgba(103, 80, 164, 0.05);
-  --nb-shadow-md: 0 4px 6px rgba(103, 80, 164, 0.07), 0 1px 3px rgba(103, 80, 164, 0.06);
-  --nb-shadow-lg: 0 10px 15px rgba(103, 80, 164, 0.1), 0 4px 6px rgba(103, 80, 164, 0.05);
-  --nb-shadow-xl: 0 20px 25px rgba(103, 80, 164, 0.1), 0 10px 10px rgba(103, 80, 164, 0.04);
+  --nb-shadow-md: 0 4px 6px rgba(103, 80, 164, 0.07),
+    0 1px 3px rgba(103, 80, 164, 0.06);
+  --nb-shadow-lg: 0 10px 15px rgba(103, 80, 164, 0.1),
+    0 4px 6px rgba(103, 80, 164, 0.05);
+  --nb-shadow-xl: 0 20px 25px rgba(103, 80, 164, 0.1),
+    0 10px 10px rgba(103, 80, 164, 0.04);
   --nb-shadow-inner: inset 0 2px 4px rgba(103, 80, 164, 0.05);
-  
+
   /* Border Radius System */
   --nb-radius-sm: 4px;
   --nb-radius-md: 8px;
   --nb-radius-lg: 12px;
   --nb-radius-xl: 16px;
   --nb-radius-full: 9999px;
-  
+
   /* Spacing System */
   --nb-space-xs: 4px;
   --nb-space-sm: 8px;
@@ -45,17 +55,18 @@
   --nb-space-lg: 16px;
   --nb-space-xl: 24px;
   --nb-space-2xl: 32px;
-  
+
   /* Typography */
-  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Oxygen",
+    "Ubuntu", "Cantarell", sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  
+
   /* Light theme only (matching NotebookLM) */
   color-scheme: light;
   color: var(--nb-text-primary);
   background-color: var(--nb-primary-bg);
-  
+
   /* Rendering optimizations */
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -64,7 +75,7 @@
 }
 
 /* Load Roboto font */
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap");
 
 /* Reset and base styles */
 * {
@@ -75,23 +86,45 @@
 
 /* Enhanced animations */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes scaleIn {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
-  from { transform: translateY(100%); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 @keyframes shimmer {
-  0% { background-position: -200px 0; }
-  100% { background-position: calc(200px + 100%) 0; }
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
 }
 
 /* Enhanced link styles */
@@ -104,7 +137,7 @@ a {
 }
 
 a::after {
-  content: '';
+  content: "";
   position: absolute;
   width: 0;
   height: 1px;
@@ -133,16 +166,27 @@ body {
 }
 
 body::before {
-  content: '';
+  content: "";
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: 
-    radial-gradient(circle at 25% 25%, rgba(103, 80, 164, 0.02) 0%, transparent 50%),
-    radial-gradient(circle at 75% 75%, rgba(76, 98, 255, 0.02) 0%, transparent 50%),
-    radial-gradient(circle at 50% 50%, rgba(76, 175, 80, 0.01) 0%, transparent 50%);
+  background-image: radial-gradient(
+      circle at 25% 25%,
+      rgba(103, 80, 164, 0.02) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 75% 75%,
+      rgba(76, 98, 255, 0.02) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(76, 175, 80, 0.01) 0%,
+      transparent 50%
+    );
   pointer-events: none;
   z-index: 0;
 }
@@ -196,13 +240,18 @@ button {
 }
 
 button::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
   transition: left 0.5s;
 }
 

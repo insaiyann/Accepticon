@@ -125,7 +125,7 @@
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   background: var(--nb-card-bg);
   color: var(--nb-text-primary);
-  font-family: 'Roboto', sans-serif;
+  font-family: "Roboto", sans-serif;
 }
 
 .config-field input:focus,
