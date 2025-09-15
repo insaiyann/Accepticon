@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { generateFallbackDiagram, validateAndFixMermaidSyntax, extractDiagramContent } from '../../utils/mermaidUtils';
 
 export interface MermaidGenerationOptions {
   diagramType?: 'flowchart' | 'sequence' | 'gantt' | 'class' | 'state' | 'auto';
@@ -137,8 +138,31 @@ class OpenAIService {
         // Determine if error is retryable
         const isRetryableError = this.isRetryableError(error);
         
-        // If this is the last attempt or non-retryable error, throw
+        // If this is the last attempt or non-retryable error, try fallback
         if (attempt === maxRetries - 1 || !isRetryableError) {
+          console.log('🚨 All OpenAI attempts failed, generating fallback diagram...');
+          
+          // Generate fallback diagram as last resort
+          try {
+            const fallbackCode = generateFallbackDiagram(content);
+            const contentAnalysis = extractDiagramContent(content);
+            
+            console.log('✅ Fallback diagram generated successfully');
+            
+            return {
+              mermaidCode: fallbackCode,
+              diagramType: 'flowchart',
+              title: `Auto-generated from content (${contentAnalysis.type || 'unknown'} type)`,
+              metadata: {
+                tokensUsed: 0,
+                processingTime: Date.now() - startTime,
+                confidence: 0.5 // Lower confidence for fallback
+              }
+            };
+          } catch (fallbackError) {
+            console.error('❌ Even fallback generation failed:', fallbackError);
+          }
+          
           const finalError = attempt === maxRetries - 1 
             ? `OpenAI API failed after ${maxRetries} attempts: ${errorMessage}`
             : `OpenAI API error: ${errorMessage}`;
@@ -342,65 +366,19 @@ Always respond with valid Mermaid syntax that will render properly.
       throw new Error('No mermaid code found in response');
     }
 
-    // Clean up common syntax errors
-    mermaidCode = this.cleanupMermaidSyntax(mermaidCode);
+    // Use advanced validation and cleanup
+    const validationResult = validateAndFixMermaidSyntax(mermaidCode);
+    if (validationResult.issues.length > 0) {
+      console.log('🔧 Fixed Mermaid syntax issues:', validationResult.issues);
+    }
+    
+    mermaidCode = validationResult.fixedCode;
 
     return {
       mermaidCode,
       diagramType,
       title: title || undefined
     };
-  }
-
-  /**
-   * Clean up common Mermaid syntax errors
-   */
-  private cleanupMermaidSyntax(code: string): string {
-    let cleanCode = code;
-
-    // Fix single quotes to double quotes in labels
-    cleanCode = cleanCode.replace(/\[([^'\]]*)'([^'\]]*)\]/g, '[$1"$2"]');
-    
-    // Fix node IDs with spaces (replace with underscores)
-    cleanCode = cleanCode.replace(/(\s+)([A-Za-z]+\s+[A-Za-z]+)(\s*-->|\s*\[|\s*\()/g, '$1$2$3'.replace(/\s+/g, '_'));
-    
-    // Remove any arc or invalid keywords that commonly cause parse errors
-    cleanCode = cleanCode.replace(/\barc\s+/gi, '');
-    
-    // Fix common arrow syntax issues
-    cleanCode = cleanCode.replace(/-->/g, ' --> ');
-    cleanCode = cleanCode.replace(/-->>/g, ' -->> ');
-    cleanCode = cleanCode.replace(/-\|/g, ' -->|');
-    
-    // Ensure proper spacing around decision nodes
-    cleanCode = cleanCode.replace(/\{([^}]+)\}/g, '{ $1 }');
-    
-    // Remove any stray quotes that aren't properly paired
-    const lines = cleanCode.split('\n');
-    const fixedLines = lines.map(line => {
-      // Count quotes and fix unpaired ones
-      const singleQuotes = (line.match(/'/g) || []).length;
-      
-      // If odd number of single quotes, likely an error
-      if (singleQuotes % 2 !== 0) {
-        line = line.replace(/'/g, '"');
-      }
-      
-      return line;
-    });
-    
-    cleanCode = fixedLines.join('\n');
-    
-    // Ensure the code starts with a valid diagram declaration
-    const firstLine = cleanCode.split('\n')[0].trim();
-    const validStarts = ['flowchart', 'sequenceDiagram', 'stateDiagram', 'classDiagram', 'gantt', 'graph'];
-    
-    if (!validStarts.some(start => firstLine.startsWith(start))) {
-      // Default to flowchart if no valid start is detected
-      cleanCode = 'flowchart TD\n' + cleanCode;
-    }
-
-    return cleanCode;
   }
 
   /**

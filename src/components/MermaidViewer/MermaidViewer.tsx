@@ -3,6 +3,7 @@ import mermaid from 'mermaid';
 import { Icon } from '../common/Icon';
 import { FiletypeSvg, FiletypePng } from 'react-bootstrap-icons';
 import { generateErrorMessage, getRetryDelay, shouldRetryError } from '../../utils/errorHandling';
+import { generateFallbackDiagram } from '../../utils/mermaidUtils';
 import './MermaidViewer.css';
 
 interface MermaidViewerProps {
@@ -130,12 +131,12 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
               .filter(line => line.trim() && !line.includes('expecting'))
               .join('\n');
             
-            // If still problematic, create a simple fallback
+            // If still problematic, create a smart fallback
             if (cleanedCode.split('\n').length < 2) {
-              cleanedCode = `flowchart TD
-    A[Start] --> B[Process]
-    B --> C[End]`;
-              console.log('🚨 Using fallback diagram due to parse errors');
+              // Extract some context for the fallback
+              const contextLines = mermaidCode.split('\n').slice(0, 3).join(' ');
+              cleanedCode = generateFallbackDiagram(contextLines || 'No content available');
+              console.log('🚨 Using smart fallback diagram due to parse errors');
             }
             
             await mermaid.parse(cleanedCode);
