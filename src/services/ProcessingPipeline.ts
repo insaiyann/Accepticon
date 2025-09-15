@@ -178,22 +178,34 @@ class ProcessingPipelineService {
     for (const message of messages) {
       if (message.type === 'audio' && (message as AudioMessage).audioBlob && !message.transcription) {
         try {
-          console.log(`Transcribing audio message: ${message.id}`);
+          console.log(`🎤 Starting transcription for audio message: ${message.id}`);
           
           // Convert blob to array buffer for speech service
           const audioMessage = message as AudioMessage;
           const transcriptionResult = await speechService.transcribeAudio(audioMessage.audioBlob!);
           const transcriptionText = transcriptionResult.text;
           
+          // Log the STT results
+          console.log(`📝 Speech-to-Text completed for message: ${message.id}`);
+          console.log(`📊 Transcription details:`, {
+            messageId: message.id,
+            originalDuration: `${Math.round(audioMessage.duration / 1000)}s`,
+            transcribedText: transcriptionText,
+            confidence: transcriptionResult.confidence,
+            language: transcriptionResult.language || 'en-US',
+            processingTime: `${transcriptionResult.duration}ms`
+          });
+          console.log(`💬 Transcribed text: "${transcriptionText}"`);
+          
           // Update message with transcription
           const updatedMessage = { ...message, transcription: transcriptionText };
           await indexedDBService.updateMessage(message.id, { transcription: transcriptionText });
           
           processedMessages.push(updatedMessage);
-          console.log(`Transcription completed for message: ${message.id}`);
+          console.log(`✅ Transcription completed and saved for message: ${message.id}`);
           
         } catch (error) {
-          console.error(`Failed to transcribe audio message ${message.id}:`, error);
+          console.error(`❌ Failed to transcribe audio message ${message.id}:`, error);
           // Include original message even if transcription fails
           processedMessages.push(message);
         }
@@ -251,6 +263,8 @@ class ProcessingPipelineService {
       process: async (item: ProcessingQueueItem) => {
         const { messageId } = item.data as { messageId: string };
         
+        console.log(`🎤 Queue processor: Starting transcription for message: ${messageId}`);
+        
         const message = await indexedDBService.getMessage(messageId);
         if (!message || message.type !== 'audio' || !(message as AudioMessage).audioBlob) {
           throw new Error('Invalid audio message for transcription');
@@ -259,9 +273,21 @@ class ProcessingPipelineService {
         const audioMessage = message as AudioMessage;
         const transcriptionResult = await speechService.transcribeAudio(audioMessage.audioBlob!);
         
+        // Log the STT results from queue processor
+        console.log(`📝 Queue STT completed for message: ${messageId}`);
+        console.log(`📊 Queue transcription details:`, {
+          messageId: messageId,
+          originalDuration: `${Math.round(audioMessage.duration / 1000)}s`,
+          transcribedText: transcriptionResult.text,
+          confidence: transcriptionResult.confidence,
+          language: transcriptionResult.language || 'en-US',
+          processingTime: `${transcriptionResult.duration}ms`
+        });
+        console.log(`💬 Queue transcribed text: "${transcriptionResult.text}"`);
+        
         await indexedDBService.updateMessage(messageId, { transcription: transcriptionResult.text });
         
-        console.log(`Queue processor completed transcription for message: ${messageId}`);
+        console.log(`✅ Queue processor completed transcription for message: ${messageId}`);
       }
     });
 
