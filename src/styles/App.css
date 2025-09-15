@@ -682,18 +682,18 @@ body {
   background-color: var(--nb-card-bg);
 }
 
-.generate-button {
+.btn.btn-primary.generate-button {
   width: 100%;
-  padding: 12px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  background: var(--nb-card-bg);
-  color: var(--nb-accent-purple);
-  border: 2px solid var(--nb-accent-purple);
-  border-radius: 12px;
+  padding: 12px !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  background: #ffffff !important;
+  color: #6750a4 !important;
+  border: 2px solid #6750a4 !important;
+  border-radius: 12px !important;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: var(--nb-shadow-md);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-shadow: 0 4px 6px rgba(103, 80, 164, 0.1), 0 1px 3px rgba(103, 80, 164, 0.08) !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -702,7 +702,14 @@ body {
   overflow: hidden;
 }
 
-.generate-button::before {
+/* Additional specific rule to ensure default state works */
+.generate-section .btn.btn-primary.generate-button {
+  background-color: #ffffff !important;
+  color: #6750a4 !important;
+  border-color: #6750a4 !important;
+}
+
+.btn.btn-primary.generate-button::before {
   content: '';
   position: absolute;
   top: 0;
@@ -713,28 +720,37 @@ body {
   transition: left 0.5s ease;
 }
 
-.generate-button:hover::before {
+.btn.btn-primary.generate-button:hover::before {
   left: 100%;
 }
 
-.generate-button:hover {
-  background: var(--nb-accent-purple);
-  color: white;
-  border-color: var(--nb-accent-purple);
-  transform: translateY(-2px);
-  box-shadow: var(--nb-shadow-xl);
+.btn.btn-primary.generate-button:hover {
+  background: var(--nb-accent-purple) !important;
+  color: white !important;
+  border-color: var(--nb-accent-purple) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 10px 25px rgba(103, 80, 164, 0.3), 0 4px 12px rgba(103, 80, 164, 0.2) !important;
 }
 
-.generate-button:disabled {
-  background: var(--nb-border-light);
-  color: var(--nb-text-disabled);
-  border-color: var(--nb-border-light);
+/* Additional specific hover rule to ensure it works */
+.generate-section .btn.btn-primary.generate-button:hover {
+  background-color: #6750a4 !important;
+  color: #ffffff !important;
+  border-color: #6750a4 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 10px 25px rgba(103, 80, 164, 0.3) !important;
+}
+
+.btn.btn-primary.generate-button:disabled {
+  background: var(--nb-border-light) !important;
+  color: var(--nb-text-disabled) !important;
+  border-color: var(--nb-border-light) !important;
   cursor: not-allowed;
-  transform: none;
-  box-shadow: var(--nb-shadow-sm);
+  transform: none !important;
+  box-shadow: var(--nb-shadow-sm) !important;
 }
 
-.generate-button:disabled::before {
+.btn.btn-primary.generate-button:disabled::before {
   display: none;
 }
 
