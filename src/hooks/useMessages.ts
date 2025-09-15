@@ -25,10 +25,22 @@ export const useMessages = (): UseMessagesResult => {
         setLoading(true);
         setError(null);
         
+        console.log('🔄 useMessages: Initializing IndexedDB and loading messages...');
         await indexedDBService.initialize();
+        
+        console.log('📊 useMessages: Calling getAllMessages...');
         const loadedMessages = await indexedDBService.getAllMessages();
+        
+        console.log(`📋 useMessages: Loaded ${loadedMessages.length} messages:`, loadedMessages.map(m => ({
+          id: m.id,
+          type: m.type,
+          hasContent: !!m.content,
+          timestamp: new Date(m.timestamp).toLocaleString()
+        })));
+        
         setMessages(loadedMessages);
       } catch (err) {
+        console.error('❌ useMessages: Failed to load messages:', err);
         setError(err instanceof Error ? err.message : 'Failed to load messages');
       } finally {
         setLoading(false);
@@ -56,6 +68,12 @@ export const useMessages = (): UseMessagesResult => {
 
   const addAudioMessage = useCallback(async (audioBlob: Blob, duration: number) => {
     try {
+      console.log('🎤 useMessages: Adding audio message...', {
+        audioBlobSize: audioBlob.size,
+        audioBlobType: audioBlob.type,
+        duration: duration
+      });
+      
       const newMessage = await indexedDBService.addAudioMessage({
         audioBlob,
         duration,
@@ -65,8 +83,23 @@ export const useMessages = (): UseMessagesResult => {
         content: `Audio message (${Math.round(duration / 1000)}s)`
       });
       
-      setMessages(prev => [...prev, newMessage].sort((a, b) => a.timestamp - b.timestamp));
+      console.log('✅ useMessages: Audio message added to IndexedDB:', {
+        id: newMessage.id,
+        type: newMessage.type,
+        hasAudioBlob: !!newMessage.audioBlob,
+        audioBlobSize: newMessage.audioBlob?.size || 0
+      });
+      
+      setMessages(prev => {
+        const updated = [...prev, newMessage].sort((a, b) => a.timestamp - b.timestamp);
+        console.log(`📋 useMessages: Updated messages state (${updated.length} total):`, updated.map(m => ({
+          id: m.id,
+          type: m.type
+        })));
+        return updated;
+      });
     } catch (err) {
+      console.error('❌ useMessages: Failed to add audio message:', err);
       setError(err instanceof Error ? err.message : 'Failed to add audio message');
       throw err;
     }

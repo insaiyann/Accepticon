@@ -213,6 +213,8 @@ class AudioRecorderService {
       throw new Error('No active recording to stop');
     }
 
+    console.log('🎤 AudioRecorder: Stopping recording...');
+
     return new Promise((resolve, reject) => {
       if (!this.mediaRecorder) {
         reject(new Error('MediaRecorder not available'));
@@ -221,11 +223,20 @@ class AudioRecorderService {
 
       this.mediaRecorder.onstop = () => {
         try {
+          console.log(`🎵 AudioRecorder: Processing ${this.audioChunks.length} audio chunks`);
+          
           const blob = new Blob(this.audioChunks, { 
             type: this.mediaRecorder?.mimeType || 'audio/webm' 
           });
           
           const duration = this.getCurrentDuration();
+          
+          console.log('🎧 AudioRecorder: Created audio blob:', {
+            size: blob.size,
+            type: blob.type,
+            duration: duration,
+            chunks: this.audioChunks.length
+          });
           
           const result: AudioRecordingResult = {
             blob,
@@ -234,8 +245,10 @@ class AudioRecorderService {
           };
 
           this.cleanup();
+          console.log('✅ AudioRecorder: Recording stopped successfully');
           resolve(result);
         } catch (error) {
+          console.error('❌ AudioRecorder: Error creating audio result:', error);
           reject(error);
         }
       };
