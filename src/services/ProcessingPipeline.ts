@@ -302,15 +302,19 @@ class ProcessingPipelineService {
               message: error instanceof Error ? error.message : 'Unknown error',
               stack: error instanceof Error ? error.stack : undefined
             });
-            // Include original message even if transcription fails
+            // Include original message even if transcription fails - will use fallback content
+            console.log(`🔄 Including message ${message.id} without transcription (will use fallback content)`);
             processedMessages.push(message);
           }
         } else if (audioMessage.transcription) {
           console.log(`♻️  Audio message ${message.id} already has transcription: "${audioMessage.transcription}"`);
           processedMessages.push(message);
-        } else {
+        } else if (!audioMessage.audioBlob) {
           console.warn(`⚠️  Audio message ${message.id} has no audio blob to transcribe`);
-          processedMessages.push(message);
+          processedMessages.push(message); // Still include it for fallback content
+        } else {
+          console.log(`🔄 Audio message ${message.id} will be included without transcription (fallback content)`);
+          processedMessages.push(message); // Include for fallback content
         }
       } else {
         console.log(`📝 Text message ${message.id}: "${message.content?.substring(0, 50)}..."`);
@@ -335,15 +339,32 @@ class ProcessingPipelineService {
   private combineMessageContent(messages: Message[]): string {
     const textParts: string[] = [];
 
+    console.log(`📝 ProcessingPipeline: Combining content from ${messages.length} messages...`);
+
     for (const message of messages) {
+      console.log(`🔄 Processing message ${message.id} of type ${message.type}`);
+      
       if (message.type === 'text' && message.content) {
+        console.log(`📝 Adding text content: "${message.content.substring(0, 50)}..."`);
         textParts.push(message.content);
-      } else if (message.type === 'audio' && message.transcription) {
-        textParts.push(message.transcription);
+      } else if (message.type === 'audio') {
+        const audioMessage = message as AudioMessage;
+        if (audioMessage.transcription) {
+          console.log(`🎤 Adding transcription: "${audioMessage.transcription}"`);
+          textParts.push(audioMessage.transcription);
+        } else {
+          // Fallback: use a placeholder or the content field
+          const fallbackContent = audioMessage.content || `[Audio message ${Math.round(audioMessage.duration / 1000)}s - transcription pending]`;
+          console.log(`⚠️ Audio message ${message.id} has no transcription, using fallback: "${fallbackContent}"`);
+          textParts.push(fallbackContent);
+        }
       }
     }
 
-    return textParts.join('\n\n').trim();
+    const combinedText = textParts.join('\n\n').trim();
+    console.log(`📄 Combined ${textParts.length} text parts into ${combinedText.length} characters`);
+    
+    return combinedText;
   }
 
   /**
