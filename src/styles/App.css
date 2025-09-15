@@ -118,12 +118,10 @@ body {
 .app-header h1 {
   font-size: 1.375rem;
   font-weight: 600;
-  background: var(--nb-gradient-accent);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--nb-text-secondary);
   margin: 0;
   letter-spacing: -0.02em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .header-controls {
@@ -442,14 +440,15 @@ body {
 }
 
 .btn-primary {
-  background: var(--nb-gradient-surface) !important;
-  color: var(--nb-text-primary) !important;
-  border: 2px solid var(--nb-border-medium) !important;
+  background: var(--nb-card-bg) !important;
+  color: var(--nb-accent-purple) !important;
+  border: 2px solid var(--nb-accent-purple) !important;
   box-shadow: var(--nb-shadow-md) !important;
+  font-weight: 600 !important;
 }
 
 .btn-primary:hover {
-  background: var(--nb-gradient-accent) !important;
+  background: var(--nb-accent-purple) !important;
   color: white !important;
   border-color: var(--nb-accent-purple) !important;
   transform: translateY(-2px);
@@ -468,12 +467,15 @@ body {
 .btn-secondary {
   background-color: var(--nb-card-bg);
   color: var(--nb-text-primary);
-  border-color: var(--nb-border-light);
+  border: 1px solid var(--nb-border-medium);
+  font-weight: 500;
 }
 
 .btn-secondary:hover {
-  background-color: rgba(103, 80, 164, 0.08);
+  background-color: var(--nb-accent-purple);
+  color: white;
   border-color: var(--nb-accent-purple);
+  transform: translateY(-1px);
 }
 
 .btn-icon {
@@ -684,10 +686,10 @@ body {
   width: 100%;
   padding: 12px;
   font-size: 0.875rem;
-  font-weight: 500;
-  background: var(--nb-gradient-surface);
-  color: var(--nb-text-primary);
-  border: 2px solid var(--nb-border-medium);
+  font-weight: 600;
+  background: var(--nb-card-bg);
+  color: var(--nb-accent-purple);
+  border: 2px solid var(--nb-accent-purple);
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -716,7 +718,7 @@ body {
 }
 
 .generate-button:hover {
-  background: var(--nb-gradient-accent);
+  background: var(--nb-accent-purple);
   color: white;
   border-color: var(--nb-accent-purple);
   transform: translateY(-2px);
