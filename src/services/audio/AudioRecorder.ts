@@ -39,19 +39,31 @@ class AudioRecorderService {
   }
 
   /**
-   * Get supported MIME types for audio recording
+   * Get supported MIME types for audio recording, prioritized for speech recognition
    */
   static getSupportedMimeTypes(): string[] {
     const types = [
-      'audio/webm;codecs=opus',
-      'audio/webm',
-      'audio/mp4',
-      'audio/ogg;codecs=opus',
-      'audio/ogg',
-      'audio/wav'
+      'audio/wav',                    // Best for speech recognition
+      'audio/webm;codecs=opus',       // Good compression with speech quality
+      'audio/webm;codecs=pcm',        // Uncompressed WebM
+      'audio/webm',                   // Default WebM
+      'audio/ogg;codecs=opus',        // Alternative with Opus codec
+      'audio/ogg;codecs=speex',       // Speech-optimized codec
+      'audio/ogg',                    // Default Ogg
+      'audio/mp4;codecs=mp4a.40.2',   // AAC in MP4
+      'audio/mp4',                    // Default MP4
+      'audio/mpeg',                   // MP3 format
+      'audio/3gpp',                   // 3GPP for mobile compatibility
+      'audio/3gpp2'                   // 3GPP2 variant
     ];
 
-    return types.filter(type => MediaRecorder.isTypeSupported(type));
+    return types.filter(type => {
+      try {
+        return MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(type);
+      } catch {
+        return false;
+      }
+    });
   }
 
   /**
@@ -120,22 +132,39 @@ class AudioRecorderService {
     }
 
     try {
-      // Request microphone access
+      // Request microphone access with optimized settings for speech recognition
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
           channelCount: 1,
-          sampleRate: 16000 // Optimal for speech recognition
+          sampleRate: 16000, // Optimal for speech recognition
+          // Additional constraints for better speech quality
+          sampleSize: 16,
+          volume: 1.0
         }
       });
 
-      // Determine best MIME type
+      // Determine best MIME type, preferring formats that work well with Azure Speech
       const supportedTypes = AudioRecorderService.getSupportedMimeTypes();
-      const mimeType = options.mimeType && supportedTypes.includes(options.mimeType) 
-        ? options.mimeType 
-        : supportedTypes[0] || 'audio/webm';
+      
+      // Prefer WAV for best compatibility, fallback to WebM with Opus codec
+      let mimeType = options.mimeType;
+      if (!mimeType || !supportedTypes.includes(mimeType)) {
+        const preferredTypes = [
+          'audio/wav',
+          'audio/webm;codecs=opus',
+          'audio/webm',
+          'audio/ogg;codecs=opus',
+          'audio/mp4'
+        ];
+        
+        mimeType = preferredTypes.find(type => supportedTypes.includes(type)) || supportedTypes[0] || 'audio/webm';
+      }
+
+      console.log(`🎤 AudioRecorder: Using MIME type: ${mimeType}`);
+      console.log(`🎵 AudioRecorder: Supported types:`, supportedTypes);
 
       // Create MediaRecorder
       const mediaRecorderOptions: MediaRecorderOptions = {

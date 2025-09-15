@@ -297,6 +297,84 @@ class IndexedDBService {
   }
 
   /**
+   * Delete a message by ID (checks both text and audio stores)
+   */
+  async deleteMessage(id: string): Promise<boolean> {
+    await this.ensureInitialized();
+
+    console.log(`🗑️ IndexedDB: Attempting to delete message with ID: ${id}`);
+
+    // First try to delete from text messages store
+    const textDeleteResult = await new Promise<boolean>((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.MESSAGES], 'readwrite');
+      const store = transaction.objectStore(STORES.MESSAGES);
+      const getRequest = store.get(id);
+
+      getRequest.onsuccess = () => {
+        const message = getRequest.result;
+        if (message) {
+          const deleteRequest = store.delete(id);
+          deleteRequest.onsuccess = () => {
+            console.log(`✅ IndexedDB: Successfully deleted text message: ${id}`);
+            resolve(true);
+          };
+          deleteRequest.onerror = () => {
+            console.error(`❌ IndexedDB: Failed to delete text message: ${id}`, deleteRequest.error);
+            reject(new Error('Failed to delete text message'));
+          };
+        } else {
+          resolve(false); // Message not found in this store
+        }
+      };
+
+      getRequest.onerror = () => {
+        console.error(`❌ IndexedDB: Failed to get text message for deletion: ${id}`, getRequest.error);
+        reject(new Error('Failed to get text message for deletion'));
+      };
+    });
+
+    if (textDeleteResult) {
+      return true; // Successfully deleted from text store
+    }
+
+    // If not found in text store, try audio messages store
+    const audioDeleteResult = await new Promise<boolean>((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.AUDIO_MESSAGES], 'readwrite');
+      const store = transaction.objectStore(STORES.AUDIO_MESSAGES);
+      const getRequest = store.get(id);
+
+      getRequest.onsuccess = () => {
+        const message = getRequest.result;
+        if (message) {
+          const deleteRequest = store.delete(id);
+          deleteRequest.onsuccess = () => {
+            console.log(`✅ IndexedDB: Successfully deleted audio message: ${id}`);
+            resolve(true);
+          };
+          deleteRequest.onerror = () => {
+            console.error(`❌ IndexedDB: Failed to delete audio message: ${id}`, deleteRequest.error);
+            reject(new Error('Failed to delete audio message'));
+          };
+        } else {
+          resolve(false); // Message not found in this store
+        }
+      };
+
+      getRequest.onerror = () => {
+        console.error(`❌ IndexedDB: Failed to get audio message for deletion: ${id}`, getRequest.error);
+        reject(new Error('Failed to get audio message for deletion'));
+      };
+    });
+
+    if (audioDeleteResult) {
+      return true; // Successfully deleted from audio store
+    }
+
+    console.warn(`⚠️ IndexedDB: Message ${id} not found in either store for deletion`);
+    return false; // Message not found in either store
+  }
+
+  /**
    * Get all audio messages
    */
   async getAudioMessages(): Promise<AudioMessage[]> {

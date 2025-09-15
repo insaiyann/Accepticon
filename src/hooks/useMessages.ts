@@ -107,10 +107,22 @@ export const useMessages = (): UseMessagesResult => {
 
   const deleteMessage = useCallback(async (id: string) => {
     try {
-      // Note: We'll implement delete functionality in IndexedDBService later
-      // For now, just remove from local state
-      setMessages(prev => prev.filter(msg => msg.id !== id));
+      console.log(`🗑️ useMessages: Attempting to delete message: ${id}`);
+      
+      // Delete from IndexedDB first
+      const deleted = await indexedDBService.deleteMessage(id);
+      
+      if (deleted) {
+        console.log(`✅ useMessages: Message ${id} deleted from database, updating local state`);
+        // Remove from local state only if successfully deleted from database
+        setMessages(prev => prev.filter(msg => msg.id !== id));
+      } else {
+        console.warn(`⚠️ useMessages: Message ${id} not found in database, removing from local state anyway`);
+        // Still remove from local state even if not found in database (cleanup)
+        setMessages(prev => prev.filter(msg => msg.id !== id));
+      }
     } catch (err) {
+      console.error(`❌ useMessages: Failed to delete message ${id}:`, err);
       setError(err instanceof Error ? err.message : 'Failed to delete message');
       throw err;
     }

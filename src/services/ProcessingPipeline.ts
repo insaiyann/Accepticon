@@ -126,19 +126,19 @@ class ProcessingPipelineService {
         throw new Error('No valid messages found');
       }
 
-      // 2. Process audio messages to get transcriptions
-      console.log(`🎤 Processing audio messages for transcription...`);
-      const processedMessages = await this.processAudioMessages(validMessages);
+      // 2. SEQUENTIAL PROCESSING: First transcribe ALL audio messages
+      console.log(`🎤 Step 1: Processing all audio messages for transcription FIRST...`);
+      const fullyProcessedMessages = await this.transcribeAllAudioMessages(validMessages);
 
-      // 3. Combine all text content
-      console.log(`📝 Combining text content from processed messages...`);
-      const combinedText = this.combineMessageContent(processedMessages);
+      // 3. Combine all text content (now all audio should have transcriptions)
+      console.log(`📝 Step 2: Combining text content from fully processed messages...`);
+      const combinedText = this.combineMessageContent(fullyProcessedMessages);
       
       console.log(`📄 Combined text content (${combinedText.length} chars):`, combinedText);
       
       if (!combinedText.trim()) {
-        console.error(`❌ No text content found after processing ${processedMessages.length} messages`);
-        console.log(`🔍 Message details:`, processedMessages.map(m => ({
+        console.error(`❌ No text content found after processing ${fullyProcessedMessages.length} messages`);
+        console.log(`🔍 Message details:`, fullyProcessedMessages.map(m => ({
           id: m.id,
           type: m.type,
           content: m.content,
@@ -148,7 +148,7 @@ class ProcessingPipelineService {
       }
 
       // 4. Generate mermaid diagram
-      console.log(`🎨 Generating mermaid diagram from text content...`);
+      console.log(`🎨 Step 3: Generating mermaid diagram from text content...`);
       const diagramResult = await openAIService.generateMermaidDiagram(
         combinedText,
         options
@@ -222,115 +222,116 @@ class ProcessingPipelineService {
   }
 
   /**
-   * Process audio messages to get transcriptions
+   * Transcribe ALL audio messages sequentially before diagram generation
    */
-  private async processAudioMessages(messages: Message[]): Promise<Message[]> {
-    const processedMessages: Message[] = [];
-    const audioMessages = messages.filter(m => m.type === 'audio') as AudioMessage[];
+  private async transcribeAllAudioMessages(messages: Message[]): Promise<Message[]> {
+    console.log(`🎵 SEQUENTIAL TRANSCRIPTION: Starting transcription of all audio messages...`);
     
-    console.log(`🎵 Found ${audioMessages.length} audio message(s) to process`);
-    console.log(`🔍 Audio messages details:`, audioMessages.map(m => ({
+    const audioMessages = messages.filter(m => m.type === 'audio') as AudioMessage[];
+    const textMessages = messages.filter(m => m.type === 'text');
+    
+    console.log(`📊 Message breakdown:`, {
+      totalMessages: messages.length,
+      audioMessages: audioMessages.length,
+      textMessages: textMessages.length
+    });
+
+    if (audioMessages.length === 0) {
+      console.log(`📝 No audio messages to transcribe, returning original messages`);
+      return messages;
+    }
+
+    console.log(`🎤 Found ${audioMessages.length} audio message(s) to transcribe:`, audioMessages.map(m => ({
       id: m.id,
-      type: m.type,
       hasAudioBlob: !!m.audioBlob,
       audioBlobSize: m.audioBlob?.size || 0,
-      duration: m.duration,
       hasTranscription: !!m.transcription,
       currentTranscription: m.transcription
     })));
 
-    for (const message of messages) {
-      console.log(`🔄 Processing message ${message.id} of type ${message.type}`);
+    // Process each audio message sequentially
+    const processedAudioMessages: AudioMessage[] = [];
+    
+    for (let i = 0; i < audioMessages.length; i++) {
+      const audioMessage = audioMessages[i];
+      console.log(`\n🔄 Processing audio message ${i + 1}/${audioMessages.length}: ${audioMessage.id}`);
       
-      if (message.type === 'audio') {
-        const audioMessage = message as AudioMessage;
-        console.log(`🎤 Audio message details:`, {
-          id: audioMessage.id,
-          hasAudioBlob: !!audioMessage.audioBlob,
-          audioBlobSize: audioMessage.audioBlob?.size || 0,
-          hasTranscription: !!audioMessage.transcription,
-          transcription: audioMessage.transcription
+      // Skip if already has transcription
+      if (audioMessage.transcription) {
+        console.log(`♻️  Audio message ${audioMessage.id} already has transcription: "${audioMessage.transcription}"`);
+        processedAudioMessages.push(audioMessage);
+        continue;
+      }
+
+      // Validate audio blob
+      if (!audioMessage.audioBlob || audioMessage.audioBlob.size === 0) {
+        console.warn(`⚠️  Audio message ${audioMessage.id} has no audio blob or empty blob`);
+        processedAudioMessages.push(audioMessage);
+        continue;
+      }
+
+      try {
+        console.log(`🚀 Starting transcription for audio message: ${audioMessage.id}`);
+        console.log(`🔊 Audio blob details:`, {
+          size: audioMessage.audioBlob.size,
+          type: audioMessage.audioBlob.type,
+          duration: audioMessage.duration
         });
         
-        if (audioMessage.audioBlob && !audioMessage.transcription) {
-          try {
-            console.log(`🎤 Starting transcription for audio message: ${message.id}`);
-            
-            // Validate audio blob
-            if (!audioMessage.audioBlob || audioMessage.audioBlob.size === 0) {
-              console.warn(`⚠️  Audio message ${message.id} has no audio blob or empty blob`);
-              processedMessages.push(message);
-              continue;
-            }
-
-            console.log(`🔊 Audio blob details:`, {
-              size: audioMessage.audioBlob.size,
-              type: audioMessage.audioBlob.type,
-              duration: audioMessage.duration
-            });
-            
-            console.log(`🚀 Calling Azure Speech Service transcribeAudio...`);
-            const transcriptionResult = await speechService.transcribeAudio(audioMessage.audioBlob!);
-            console.log(`📥 Received transcription result:`, transcriptionResult);
-            
-            const transcriptionText = transcriptionResult.text;
-            
-            // Log the STT results
-            console.log(`📝 Speech-to-Text completed for message: ${message.id}`);
-            console.log(`📊 Transcription details:`, {
-              messageId: message.id,
-              originalDuration: `${Math.round(audioMessage.duration / 1000)}s`,
-              transcribedText: transcriptionText,
-              confidence: transcriptionResult.confidence,
-              language: transcriptionResult.language || 'en-US',
-              processingTime: `${transcriptionResult.duration}ms`
-            });
-            console.log(`💬 Transcribed text: "${transcriptionText}"`);
-            
-            // Update message with transcription
-            const updatedMessage = { ...message, transcription: transcriptionText };
-            console.log(`💾 Saving transcription to IndexedDB...`);
-            await indexedDBService.updateMessage(message.id, { transcription: transcriptionText });
-            console.log(`💾 Transcription saved to IndexedDB`);
-            
-            processedMessages.push(updatedMessage);
-            console.log(`✅ Transcription completed and saved for message: ${message.id}`);
-            
-          } catch (error) {
-            console.error(`❌ Failed to transcribe audio message ${message.id}:`, error);
-            console.error(`❌ Error details:`, {
-              message: error instanceof Error ? error.message : 'Unknown error',
-              stack: error instanceof Error ? error.stack : undefined
-            });
-            // Include original message even if transcription fails - will use fallback content
-            console.log(`🔄 Including message ${message.id} without transcription (will use fallback content)`);
-            processedMessages.push(message);
-          }
-        } else if (audioMessage.transcription) {
-          console.log(`♻️  Audio message ${message.id} already has transcription: "${audioMessage.transcription}"`);
-          processedMessages.push(message);
-        } else if (!audioMessage.audioBlob) {
-          console.warn(`⚠️  Audio message ${message.id} has no audio blob to transcribe`);
-          processedMessages.push(message); // Still include it for fallback content
-        } else {
-          console.log(`🔄 Audio message ${message.id} will be included without transcription (fallback content)`);
-          processedMessages.push(message); // Include for fallback content
-        }
-      } else {
-        console.log(`📝 Text message ${message.id}: "${message.content?.substring(0, 50)}..."`);
-        processedMessages.push(message);
+        console.log(`📞 Calling Azure Speech Service transcribeAudio...`);
+        const transcriptionResult = await speechService.transcribeAudio(audioMessage.audioBlob);
+        console.log(`📥 Received transcription result:`, transcriptionResult);
+        
+        const transcriptionText = transcriptionResult.text;
+        
+        // Log the STT results
+        console.log(`📝 Speech-to-Text completed for message: ${audioMessage.id}`);
+        console.log(`📊 Transcription details:`, {
+          messageId: audioMessage.id,
+          originalDuration: `${Math.round(audioMessage.duration / 1000)}s`,
+          transcribedText: transcriptionText,
+          confidence: transcriptionResult.confidence,
+          language: transcriptionResult.language || 'en-US',
+          processingTime: `${transcriptionResult.duration}ms`
+        });
+        console.log(`💬 Transcribed text: "${transcriptionText}"`);
+        
+        // Update message with transcription
+        const updatedMessage = { ...audioMessage, transcription: transcriptionText };
+        
+        // Save transcription to IndexedDB
+        console.log(`💾 Saving transcription to IndexedDB...`);
+        await indexedDBService.updateMessage(audioMessage.id, { transcription: transcriptionText });
+        console.log(`💾 Transcription saved to IndexedDB`);
+        
+        processedAudioMessages.push(updatedMessage);
+        console.log(`✅ Audio message ${audioMessage.id} transcription completed and saved`);
+        
+      } catch (error) {
+        console.error(`❌ Failed to transcribe audio message ${audioMessage.id}:`, error);
+        console.error(`❌ Error details:`, {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined
+        });
+        
+        // Include original message even if transcription fails - will use fallback content
+        console.log(`🔄 Including message ${audioMessage.id} without transcription (will use fallback content)`);
+        processedAudioMessages.push(audioMessage);
       }
     }
 
-    console.log(`✨ Finished processing ${processedMessages.length} messages`);
-    console.log(`🔍 Final processed messages:`, processedMessages.map(m => ({
-      id: m.id,
-      type: m.type,
-      hasContent: !!m.content,
-      hasTranscription: !!(m as AudioMessage).transcription,
-      transcription: (m as AudioMessage).transcription
-    })));
-    return processedMessages;
+    // Combine processed audio messages with text messages
+    const allProcessedMessages = [...textMessages, ...processedAudioMessages];
+    
+    console.log(`\n✨ SEQUENTIAL TRANSCRIPTION COMPLETE!`);
+    console.log(`📊 Final results:`, {
+      totalProcessed: allProcessedMessages.length,
+      audioWithTranscription: processedAudioMessages.filter(m => m.transcription).length,
+      audioWithoutTranscription: processedAudioMessages.filter(m => !m.transcription).length,
+      textMessages: textMessages.length
+    });
+    
+    return allProcessedMessages.sort((a, b) => a.timestamp - b.timestamp);
   }
 
   /**
