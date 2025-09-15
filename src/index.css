@@ -1,68 +1,178 @@
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* NotebookLM Design System Colors */
+  --nb-primary-bg: #EDEFFA;
+  --nb-card-bg: #FFFFFF;
+  --nb-text-primary: #49454F;
+  --nb-text-secondary: #1D1B20;
+  --nb-text-muted: #757575;
+  --nb-text-disabled: #6D6D6D;
+  --nb-border-light: #CAC4D0;
+  --nb-border-medium: #DDE1EB;
+  --nb-accent-blue: #4C62FF;
+  --nb-accent-purple: #6750A4;
+  --nb-accent-teal: #0957D0;
+  --nb-success: #4CAF50;
+  --nb-warning: #FABD05;
+  --nb-error: #DC3545;
+  
+  /* Typography */
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
+  
+  /* Light theme only (matching NotebookLM) */
+  color-scheme: light;
+  color: var(--nb-text-primary);
+  background-color: var(--nb-primary-bg);
+  
+  /* Rendering optimizations */
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Load Roboto font */
+@import url('https://fonts.googleapis.com/css2?family:Roboto:wght@400;500;600;700&display=swap');
+
+/* Reset and base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 a {
   font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+  color: var(--nb-accent-blue);
+  text-decoration: none;
+  transition: color 0.2s ease;
 }
+
 a:hover {
-  color: #535bf2;
+  color: var(--nb-accent-purple);
+  text-decoration: underline;
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  background-color: var(--nb-primary-bg);
+  color: var(--nb-text-primary);
 }
 
 h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+  font-size: 1.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--nb-text-secondary);
 }
 
+h2 {
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--nb-text-primary);
+}
+
+h3 {
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--nb-text-primary);
+}
+
+/* Material Design 3 Button Styles */
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
+  border-radius: 100px;
+  border: 1px solid var(--nb-border-light);
+  padding: 6px 12px;
+  font-size: 0.875rem;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: var(--nb-card-bg);
+  color: var(--nb-text-primary);
   cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 32px;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+button:hover {
+  background-color: rgba(103, 80, 164, 0.08);
+  border-color: var(--nb-accent-purple);
+}
+
+button:focus,
+button:focus-visible {
+  outline: 2px solid var(--nb-accent-blue);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  background-color: rgba(29, 27, 32, 0.1);
+  color: var(--nb-text-disabled);
+  border-color: var(--nb-border-light);
+  cursor: not-allowed;
+}
+
+/* Primary button variant */
+.btn-primary {
+  background-color: var(--nb-accent-purple);
+  color: white;
+  border-color: var(--nb-accent-purple);
+}
+
+.btn-primary:hover {
+  background-color: rgba(103, 80, 164, 0.9);
+}
+
+/* Filled tonal button variant */
+.btn-filled-tonal {
+  background-color: rgba(103, 80, 164, 0.1);
+  color: var(--nb-accent-purple);
+  border-color: transparent;
+}
+
+.btn-filled-tonal:hover {
+  background-color: rgba(103, 80, 164, 0.2);
+}
+
+/* Text button variant */
+.btn-text {
+  background-color: transparent;
+  border-color: transparent;
+  color: var(--nb-accent-blue);
+}
+
+.btn-text:hover {
+  background-color: rgba(76, 98, 255, 0.08);
+}
+
+/* Input field styles */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+textarea {
+  border: 1px solid var(--nb-border-light);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  background-color: var(--nb-card-bg);
+  color: var(--nb-text-primary);
+  transition: border-color 0.2s ease;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--nb-accent-blue);
+  box-shadow: 0 0 0 1px var(--nb-accent-blue);
 }

@@ -25,7 +25,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Mermaid Diagram Generator</h1>
+        <div className="app-logo">
+          <div className="logo-icon">📋</div>
+          <h1>AcceptiCon</h1>
+        </div>
         <div className="header-controls">
           <div className="status-indicator">
             <span className={`status-dot ${isInitialized ? 'connected' : 'disconnected'}`}></span>
@@ -34,7 +37,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             </span>
           </div>
           <button 
-            className="settings-button"
+            className="settings-button btn-secondary"
             onClick={() => setIsConfigOpen(true)}
             title="Azure Configuration"
           >

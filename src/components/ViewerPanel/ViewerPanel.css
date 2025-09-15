@@ -1,24 +1,28 @@
+/* NotebookLM-inspired Viewer Panel */
 .viewer-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #ffffff;
-  border-radius: 8px;
+  background: var(--nb-card-bg);
+  border-radius: 12px;
+  border: 1px solid var(--nb-border-medium);
   overflow: hidden;
   position: relative;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .viewer-panel-mermaid {
   height: 100%;
-  border-radius: 0;
+  border-radius: 0 0 12px 12px;
   box-shadow: none;
 }
 
 /* Ensure the mermaid viewer fills the panel */
 .viewer-panel .mermaid-viewer {
-  border-radius: 0;
+  border-radius: 0 0 12px 12px;
   box-shadow: none;
   height: 100%;
+  background: var(--nb-card-bg);
 }
 
 /* Pipeline error overlay */
@@ -32,17 +36,18 @@
 }
 
 .pipeline-error {
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
-  border-radius: 0 0 8px 8px;
-  padding: 12px 16px;
+  background: rgba(220, 53, 69, 0.1);
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  border-radius: 0 0 6px 6px;
+  padding: 8px 12px;
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #991b1b;
-  font-size: 14px;
+  color: var(--nb-error);
+  font-size: 0.75rem;
   pointer-events: all;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.15);
+  margin: 0 1px;
 }
 
 .error-icon {
@@ -52,16 +57,18 @@
 
 .error-message {
   flex: 1;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .error-close {
   background: none;
   border: none;
-  color: #991b1b;
+  color: var(--nb-error);
   cursor: pointer;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: bold;
-  padding: 0;
+  padding: 2px;
   width: 20px;
   height: 20px;
   display: flex;
@@ -72,22 +79,106 @@
 }
 
 .error-close:hover {
-  background: rgba(153, 27, 27, 0.1);
+  background: rgba(220, 53, 69, 0.2);
+}
+
+/* Loading state for viewer */
+.viewer-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--nb-text-muted);
+  gap: 12px;
+  padding: 32px;
+}
+
+.viewer-loading-icon {
+  font-size: 2rem;
+  opacity: 0.5;
+  animation: pulse 2s infinite;
+}
+
+.viewer-loading-text {
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* Empty state */
+.viewer-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--nb-text-muted);
+  gap: 12px;
+  padding: 32px;
+}
+
+.viewer-empty-icon {
+  font-size: 2.5rem;
+  opacity: 0.3;
+}
+
+.viewer-empty-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--nb-text-disabled);
+  text-align: center;
+}
+
+.viewer-empty-description {
+  font-size: 0.75rem;
+  color: var(--nb-text-muted);
+  text-align: center;
+  line-height: 1.4;
+  max-width: 300px;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .viewer-panel {
-    border-radius: 0;
+    border-radius: 12px;
   }
 
   .viewer-panel-mermaid {
-    border-radius: 0;
+    border-radius: 0 0 12px 12px;
   }
 
   .pipeline-error {
-    border-radius: 0;
+    border-radius: 0 0 6px 6px;
     padding: 8px 12px;
-    font-size: 13px;
+    font-size: 0.625rem;
+    margin: 0;
+  }
+
+  .viewer-loading,
+  .viewer-empty {
+    padding: 24px 16px;
+  }
+
+  .viewer-empty-icon {
+    font-size: 2rem;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .pipeline-error {
+    border: 2px solid var(--nb-error);
+    background: white;
+  }
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.8;
   }
 }

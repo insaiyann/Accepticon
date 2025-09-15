@@ -2,7 +2,17 @@
 
 A Progressive Web Application that converts text and voice messages into interactive Mermaid diagrams using Azure AI services.
 
-## 🏗️ High-Level Architecture
+## � Design System
+
+AcceptiCon features a **NotebookLM-inspired design** with clean, modern aesthetics:
+
+- **Color Palette**: Light theme with `#EDEFFA` background and white cards
+- **Typography**: Roboto font family with consistent sizing and weights
+- **Layout**: Card-based design with 12px border radius and subtle shadows
+- **Components**: Material Design 3 inspired buttons and form elements
+- **Responsive**: Mobile-first approach with adaptive grid layouts
+
+## �🏗️ High-Level Architecture
 
 AcceptiCon follows a modular, pipeline-based architecture that processes user inputs through multiple stages to generate intelligent diagrams:
 
@@ -22,12 +32,12 @@ AcceptiCon follows a modular, pipeline-based architecture that processes user in
 ## 🔧 Core Components
 
 ### 1. **Frontend Layer**
-- **React + TypeScript**: Modern UI with type safety
+- **React + TypeScript**: Modern UI with type safety and NotebookLM-inspired design
 - **Vite**: Fast development and optimized builds
 - **Progressive Web App**: Offline capabilities and native app experience
 
 ### 2. **Input Management**
-- **Text Input**: Direct message entry
+- **Text Input**: Direct message entry with Material Design 3 styling
 - **Voice Recording**: Real-time audio capture with MediaRecorder API
 - **Message Storage**: Persistent storage using IndexedDB
 
@@ -37,8 +47,8 @@ AcceptiCon follows a modular, pipeline-based architecture that processes user in
 - **Queue Management**: Background processing with retry mechanisms
 
 ### 4. **Visualization Engine**
-- **Mermaid.js**: Dynamic diagram rendering
-- **Interactive Controls**: Zoom, pan, download capabilities
+- **Mermaid.js**: Dynamic diagram rendering in clean card interface
+- **Interactive Controls**: Zoom, pan, download capabilities with Material Design buttons
 - **Multiple Format Support**: Flowcharts, sequence diagrams, etc.
 
 ## 🚀 Pipeline Workflows
