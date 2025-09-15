@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
 import { Icon } from '../common/Icon';
 import { FiletypeSvg, FiletypePng } from 'react-bootstrap-icons';
+import { generateErrorMessage, getRetryDelay, shouldRetryError } from '../../utils/errorHandling';
 import './MermaidViewer.css';
 
 interface MermaidViewerProps {
@@ -9,6 +10,13 @@ interface MermaidViewerProps {
   title?: string;
   onError?: (error: string) => void;
   className?: string;
+}
+
+interface RetryState {
+  attempt: number;
+  maxAttempts: number;
+  isRetrying: boolean;
+  retryReason?: string;
 }
 
 const MermaidViewer: React.FC<MermaidViewerProps> = ({
@@ -22,6 +30,12 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [svgElement, setSvgElement] = useState<SVGElement | null>(null);
+  const [retryState, setRetryState] = useState<RetryState>({
+    attempt: 0,
+    maxAttempts: 3,
+    isRetrying: false,
+    retryReason: undefined
+  });
 
   // Initialize mermaid
   useEffect(() => {
@@ -53,58 +67,149 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
       return;
     }
 
+    // Helper function for delays
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
     const renderDiagram = async () => {
+      await renderDiagramWithRetry(0);
+    };
+
+    const renderDiagramWithRetry = async (attemptNumber: number): Promise<void> => {
       setIsLoading(true);
       setError(null);
+      
+      // Update retry state
+      setRetryState(prev => ({
+        ...prev,
+        attempt: attemptNumber,
+        isRetrying: attemptNumber > 0
+      }));
 
       try {
-        // Validate mermaid syntax
-        await mermaid.parse(mermaidCode);
+        console.log(`🎯 Rendering diagram attempt ${attemptNumber + 1}/${retryState.maxAttempts}`);
+        
+        // Validate mermaid syntax with detailed error handling
+        try {
+          await mermaid.parse(mermaidCode);
+          console.log('✅ Mermaid syntax validation passed');
+        } catch (parseError) {
+          const parseErrorMessage = parseError instanceof Error ? parseError.message : 'Parse error';
+          console.error('❌ Mermaid parse error:', parseErrorMessage);
+          throw new Error(`Diagram syntax error: ${parseErrorMessage}`);
+        }
         
         // Clear previous content
-        containerRef.current!.innerHTML = '';
+        if (containerRef.current) {
+          containerRef.current.innerHTML = '';
+        }
         
         // Generate unique ID for the diagram
         const diagramId = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         
-        // Render the diagram
-        const { svg } = await mermaid.render(diagramId, mermaidCode);
+        // Render the diagram with timeout protection
+        const renderPromise = mermaid.render(diagramId, mermaidCode);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Render timeout')), 15000)
+        );
+        
+        const { svg } = await Promise.race([renderPromise, timeoutPromise]) as { svg: string };
         
         // Insert the SVG into the container
-        containerRef.current!.innerHTML = svg;
-        
-        // Store SVG element for fullscreen functionality
-        const svgEl = containerRef.current!.querySelector('svg');
-        setSvgElement(svgEl);
+        if (containerRef.current) {
+          containerRef.current.innerHTML = svg;
+          
+          // Store SVG element for fullscreen functionality
+          const svgEl = containerRef.current.querySelector('svg');
+          setSvgElement(svgEl);
 
-        // Add zoom functionality to the SVG
-        if (svgEl) {
-          addZoomFunctionality(svgEl);
+          // Add zoom functionality to the SVG
+          if (svgEl) {
+            addZoomFunctionality(svgEl);
+          }
         }
 
-        console.log('Mermaid diagram rendered successfully');
+        console.log('✅ Mermaid diagram rendered successfully');
+        
+        // Reset retry state on success
+        setRetryState(prev => ({
+          ...prev,
+          attempt: 0,
+          isRetrying: false,
+          retryReason: undefined
+        }));
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to render diagram';
-        setError(errorMessage);
-        onError?.(errorMessage);
-        console.error('Mermaid rendering error:', error);
+        console.error(`❌ Mermaid rendering error (attempt ${attemptNumber + 1}):`, errorMessage);
         
-        // Show error in container
-        containerRef.current!.innerHTML = `
-          <div class="mermaid-error">
-            <div class="error-icon">⚠️</div>
-            <div class="error-title">Diagram Rendering Error</div>
-            <div class="error-message">${errorMessage}</div>
-          </div>
-        `;
+        // Use improved error analysis
+        const canRetry = shouldRetryError(errorMessage, attemptNumber, retryState.maxAttempts);
+        
+        if (canRetry) {
+          // Calculate smart retry delay based on error type
+          const retryDelay = getRetryDelay(errorMessage, attemptNumber);
+          console.log(`🔄 Retrying in ${retryDelay}ms... (attempt ${attemptNumber + 2}/${retryState.maxAttempts})`);
+          
+          // Generate user-friendly error message
+          const userError = generateErrorMessage(errorMessage, {
+            attempt: attemptNumber + 1,
+            maxAttempts: retryState.maxAttempts,
+            nextRetryIn: retryDelay
+          });
+          
+          setRetryState(prev => ({
+            ...prev,
+            retryReason: userError.message || userError.title
+          }));
+          
+          await delay(retryDelay);
+          return renderDiagramWithRetry(attemptNumber + 1);
+        } else {
+          // Final failure - generate comprehensive error message
+          const finalErrorInfo = generateErrorMessage(errorMessage, {
+            attempt: attemptNumber + 1,
+            maxAttempts: retryState.maxAttempts
+          });
+          
+          const finalError = finalErrorInfo.title;
+          setError(finalError);
+          onError?.(finalError);
+          
+          setRetryState(prev => ({
+            ...prev,
+            isRetrying: false,
+            retryReason: undefined
+          }));
+          
+          console.error(`💥 Final rendering failure:`, finalError);
+          
+          // Show enhanced error in container
+          if (containerRef.current) {
+            containerRef.current.innerHTML = `
+              <div class="mermaid-error">
+                <div class="error-icon">⚠️</div>
+                <div class="error-title">${finalErrorInfo.title}</div>
+                <div class="error-message">${finalErrorInfo.details}</div>
+                ${finalErrorInfo.suggestions.length > 0 ? `
+                  <div class="error-suggestions">
+                    <div class="suggestions-title">What you can do:</div>
+                    <ul class="suggestions-list">
+                      ${finalErrorInfo.suggestions.map(suggestion => `<li>${suggestion}</li>`).join('')}
+                    </ul>
+                  </div>
+                ` : ''}
+                <div class="retry-info">Attempted ${retryState.maxAttempts} times with smart retry logic</div>
+              </div>
+            `;
+          }
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
     renderDiagram();
-  }, [mermaidCode, onError]);
+  }, [mermaidCode, onError, retryState.maxAttempts]);
 
   // Add zoom and pan functionality to SVG
   const addZoomFunctionality = (svg: SVGElement) => {
@@ -330,7 +435,15 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
         {isLoading && (
           <div className="mermaid-loading">
             <div className="loading-spinner"></div>
-            <div>Rendering diagram...</div>
+            <div>
+              {retryState.isRetrying 
+                ? `Retrying diagram render (${retryState.attempt + 1}/${retryState.maxAttempts})...` 
+                : 'Rendering diagram...'
+              }
+            </div>
+            {retryState.retryReason && (
+              <div className="retry-reason">{retryState.retryReason}</div>
+            )}
           </div>
         )}
         

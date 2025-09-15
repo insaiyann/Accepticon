@@ -2,6 +2,7 @@ import speechService from './azure/SpeechService';
 import openAIService from './azure/OpenAIService';
 import { indexedDBService } from './storage/IndexedDBService';
 import { processingQueueService } from './ProcessingQueue';
+import { shouldRetryError, getRetryDelay } from '../utils/errorHandling';
 import type { Message, AudioMessage, ProcessingQueueItem, DiagramCache } from '../types/Message';
 import type { MermaidGenerationOptions } from './azure/OpenAIService';
 
@@ -147,12 +148,9 @@ class ProcessingPipelineService {
         throw new Error('No text content found to generate diagram');
       }
 
-      // 4. Generate mermaid diagram
+      // 4. Generate mermaid diagram with retry logic
       console.log(`🎨 Step 3: Generating mermaid diagram from text content...`);
-      const diagramResult = await openAIService.generateMermaidDiagram(
-        combinedText,
-        options
-      );
+      const diagramResult = await this.generateDiagramWithRetry(combinedText, options);
 
       console.log(`✨ Diagram generated successfully:`, {
         diagramType: diagramResult.diagramType,
@@ -510,6 +508,61 @@ class ProcessingPipelineService {
     currentlyProcessing: number;
   }> {
     return await processingQueueService.getQueueStats();
+  }
+
+  /**
+   * Generate mermaid diagram with retry logic
+   */
+  private async generateDiagramWithRetry(
+    content: string, 
+    options: MermaidGenerationOptions,
+    maxRetries: number = 3
+  ): Promise<{
+    mermaidCode: string;
+    diagramType: string;
+    title?: string;
+    metadata: {
+      tokensUsed: number;
+      processingTime: number;
+      confidence: number;
+    };
+  }> {
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        console.log(`🚀 Diagram generation attempt ${attempt + 1}/${maxRetries}`);
+        
+        const result = await openAIService.generateMermaidDiagram(content, options);
+        
+        console.log(`✅ Diagram generation successful on attempt ${attempt + 1}`);
+        return result;
+        
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`❌ Diagram generation failed (attempt ${attempt + 1}/${maxRetries}):`, errorMessage);
+        
+        // Use improved error analysis for retry decision
+        const canRetry = shouldRetryError(errorMessage, attempt, maxRetries);
+        
+        // If this is the last attempt or non-retryable error, throw
+        if (!canRetry) {
+          const finalError = attempt === maxRetries - 1 
+            ? `Failed to generate diagram after ${maxRetries} attempts: ${errorMessage}`
+            : errorMessage;
+          throw new Error(finalError);
+        }
+        
+        // Calculate smart retry delay based on error type
+        const retryDelay = getRetryDelay(errorMessage, attempt);
+        console.log(`🔄 Retrying diagram generation in ${retryDelay}ms...`);
+        
+        await delay(retryDelay);
+      }
+    }
+    
+    // This should never be reached due to the throw statements above
+    throw new Error('Diagram generation failed after all retry attempts');
   }
 
   /**

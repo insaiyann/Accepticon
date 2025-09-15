@@ -64,62 +64,140 @@ class OpenAIService {
     content: string,
     options: MermaidGenerationOptions = {}
   ): Promise<MermaidGenerationResult> {
+    return await this.generateMermaidDiagramWithRetry(content, options, 3);
+  }
+
+  /**
+   * Generate mermaid diagram with retry logic
+   */
+  private async generateMermaidDiagramWithRetry(
+    content: string,
+    options: MermaidGenerationOptions = {},
+    maxRetries: number = 3
+  ): Promise<MermaidGenerationResult> {
     if (!this.isInitialized || !this.client) {
       throw new Error('OpenAI service not initialized');
     }
 
-    const startTime = Date.now();
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-    try {
-      const prompt = this.buildMermaidPrompt(content, options);
-      
-      const response = await this.client.chat.completions.create({
-        model: 'gpt-4', // This will be mapped to the deployment
-        messages: [
-          {
-            role: 'system',
-            content: this.getSystemPrompt()
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        max_tokens: options.maxTokens || 1000,
-        temperature: options.temperature || 0.3,
-        top_p: 0.9,
-        frequency_penalty: 0,
-        presence_penalty: 0
-      });
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const startTime = Date.now();
 
-      const assistantMessage = response.choices[0]?.message?.content;
-      if (!assistantMessage) {
-        throw new Error('No response received from OpenAI');
-      }
+      try {
+        console.log(`🤖 OpenAI API call attempt ${attempt + 1}/${maxRetries}`);
+        
+        const prompt = this.buildMermaidPrompt(content, options);
+        
+        const response = await this.client.chat.completions.create({
+          model: 'gpt-4', // This will be mapped to the deployment
+          messages: [
+            {
+              role: 'system',
+              content: this.getSystemPrompt()
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          max_tokens: options.maxTokens || 1000,
+          temperature: options.temperature || 0.3,
+          top_p: 0.9,
+          frequency_penalty: 0,
+          presence_penalty: 0
+        });
 
-      const processingTime = Date.now() - startTime;
-      const tokensUsed = response.usage?.total_tokens || 0;
-
-      // Extract mermaid code and metadata from response
-      const result = this.parseMermaidResponse(assistantMessage);
-      
-      return {
-        ...result,
-        metadata: {
-          tokensUsed,
-          processingTime,
-          confidence: this.calculateConfidence(result.mermaidCode)
+        const assistantMessage = response.choices[0]?.message?.content;
+        if (!assistantMessage) {
+          throw new Error('No response received from OpenAI');
         }
-      };
 
-    } catch (error) {
-      console.error('Failed to generate mermaid diagram:', error);
-      throw new Error(`Diagram generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        const processingTime = Date.now() - startTime;
+        const tokensUsed = response.usage?.total_tokens || 0;
+
+        // Extract mermaid code and metadata from response
+        const result = this.parseMermaidResponse(assistantMessage);
+        
+        console.log(`✅ OpenAI API call successful on attempt ${attempt + 1}`);
+        
+        return {
+          ...result,
+          metadata: {
+            tokensUsed,
+            processingTime,
+            confidence: this.calculateConfidence(result.mermaidCode)
+          }
+        };
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`❌ OpenAI API call failed (attempt ${attempt + 1}/${maxRetries}):`, errorMessage);
+        
+        // Determine if error is retryable
+        const isRetryableError = this.isRetryableError(error);
+        
+        // If this is the last attempt or non-retryable error, throw
+        if (attempt === maxRetries - 1 || !isRetryableError) {
+          const finalError = attempt === maxRetries - 1 
+            ? `OpenAI API failed after ${maxRetries} attempts: ${errorMessage}`
+            : `OpenAI API error: ${errorMessage}`;
+          throw new Error(finalError);
+        }
+        
+        // Calculate exponential backoff delay with jitter
+        const baseDelay = Math.min(1000 * Math.pow(2, attempt), 10000);
+        const jitterDelay = baseDelay + Math.random() * 1000; // Add up to 1s jitter
+        
+        console.log(`🔄 Retrying OpenAI API call in ${Math.round(jitterDelay)}ms...`);
+        await delay(jitterDelay);
+      }
     }
+    
+    // This should never be reached due to the throw statements above
+    throw new Error('OpenAI API failed after all retry attempts');
   }
 
   /**
-   * Build the prompt for mermaid generation
+   * Check if an error is retryable
+   */
+  private isRetryableError(error: unknown): boolean {
+    if (!(error instanceof Error)) return false;
+    
+    const errorMessage = error.message.toLowerCase();
+    
+    // Network/timeout errors
+    if (errorMessage.includes('timeout') || 
+        errorMessage.includes('network') ||
+        errorMessage.includes('econnreset') ||
+        errorMessage.includes('enotfound') ||
+        errorMessage.includes('socket hang up')) {
+      return true;
+    }
+    
+    // HTTP errors that are retryable
+    if (errorMessage.includes('429') ||  // Rate limiting
+        errorMessage.includes('503') ||  // Service unavailable
+        errorMessage.includes('502') ||  // Bad gateway
+        errorMessage.includes('504')) {  // Gateway timeout
+      return true;
+    }
+    
+    // Non-retryable errors
+    if (errorMessage.includes('401') ||  // Unauthorized
+        errorMessage.includes('403') ||  // Forbidden
+        errorMessage.includes('400') ||  // Bad request
+        errorMessage.includes('invalid') ||
+        errorMessage.includes('malformed')) {
+      return false;
+    }
+    
+    // Default to retryable for unknown errors
+    return true;
+  }
+
+  /**
+   * Build the prompt for mermaid generation (rest of implementation)
    */
   private buildMermaidPrompt(content: string, options: MermaidGenerationOptions): string {
     const diagramTypeHint = options.diagramType && options.diagramType !== 'auto' 
