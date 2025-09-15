@@ -130,14 +130,34 @@ class IndexedDBService {
   async getAllMessages(): Promise<(TextMessage | AudioMessage)[]> {
     await this.ensureInitialized();
 
+    console.log('🔍 IndexedDB: Getting all messages...');
+
     const [textMessages, audioMessages] = await Promise.all([
       this.getTextMessages(),
       this.getAudioMessages()
     ]);
 
+    console.log(`📊 IndexedDB: Retrieved ${textMessages.length} text messages and ${audioMessages.length} audio messages`);
+    console.log('📝 Text messages IDs:', textMessages.map(m => m.id));
+    console.log('🎤 Audio messages details:', audioMessages.map(m => ({
+      id: m.id,
+      type: m.type,
+      hasAudioBlob: !!m.audioBlob,
+      audioBlobSize: m.audioBlob?.size || 0,
+      hasTranscription: !!m.transcription
+    })));
+
     // Combine and sort by timestamp
     const allMessages = [...textMessages, ...audioMessages];
-    return allMessages.sort((a, b) => a.timestamp - b.timestamp);
+    const sortedMessages = allMessages.sort((a, b) => a.timestamp - b.timestamp);
+    
+    console.log(`📋 IndexedDB: Returning ${sortedMessages.length} total messages:`, sortedMessages.map(m => ({
+      id: m.id,
+      type: m.type,
+      timestamp: new Date(m.timestamp).toLocaleString()
+    })));
+
+    return sortedMessages;
   }
 
   /**
@@ -162,6 +182,8 @@ class IndexedDBService {
   async getMessage(id: string): Promise<Message | null> {
     await this.ensureInitialized();
 
+    console.log(`🔍 IndexedDB: Getting message with ID: ${id}`);
+
     // First try text messages store
     const textMessage = await new Promise<Message | null>((resolve, reject) => {
       const transaction = this.db!.transaction([STORES.MESSAGES], 'readonly');
@@ -169,16 +191,19 @@ class IndexedDBService {
       const request = store.get(id);
 
       request.onsuccess = () => {
-        resolve(request.result || null);
+        const result = request.result || null;
+        console.log(`📝 IndexedDB: Text store search for ${id}:`, result ? 'Found' : 'Not found');
+        resolve(result);
       };
 
       request.onerror = () => {
-        console.error('Failed to get text message:', request.error);
+        console.error(`❌ IndexedDB: Failed to get text message ${id}:`, request.error);
         reject(new Error('Failed to get text message'));
       };
     });
 
     if (textMessage) {
+      console.log(`✅ IndexedDB: Found message ${id} in text store`);
       return textMessage;
     }
 
@@ -189,14 +214,31 @@ class IndexedDBService {
       const request = store.get(id);
 
       request.onsuccess = () => {
-        resolve(request.result || null);
+        const result = request.result || null;
+        console.log(`🎤 IndexedDB: Audio store search for ${id}:`, result ? 'Found' : 'Not found');
+        if (result) {
+          console.log(`🎵 IndexedDB: Audio message details:`, {
+            id: result.id,
+            type: result.type,
+            hasAudioBlob: !!result.audioBlob,
+            audioBlobSize: result.audioBlob?.size || 0,
+            hasTranscription: !!result.transcription
+          });
+        }
+        resolve(result);
       };
 
       request.onerror = () => {
-        console.error('Failed to get audio message:', request.error);
+        console.error(`❌ IndexedDB: Failed to get audio message ${id}:`, request.error);
         reject(new Error('Failed to get audio message'));
       };
     });
+
+    if (audioMessage) {
+      console.log(`✅ IndexedDB: Found message ${id} in audio store`);
+    } else {
+      console.warn(`⚠️ IndexedDB: Message ${id} not found in either store`);
+    }
 
     return audioMessage;
   }

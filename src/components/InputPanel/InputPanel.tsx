@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import MessageComponent from '../common/MessageComponent';
 import { useMessages, useAudioRecorder } from '../../hooks/useMessages';
 import { useProcessingPipelineContext } from '../../hooks/useProcessingPipelineContext';
+import type { AudioMessage } from '../../types/Message';
 
 const formatDuration = (duration: number): string => {
   const seconds = Math.floor(duration / 1000);
@@ -98,14 +99,28 @@ export const InputPanel: React.FC = () => {
     }
     
     try {
+      console.log('🎨 InputPanel: Starting diagram generation...');
+      console.log(`📋 InputPanel: Current messages (${messages.length}):`, messages.map(m => ({
+        id: m.id,
+        type: m.type,
+        hasContent: !!m.content,
+        hasAudioBlob: !!(m.type === 'audio' && (m as AudioMessage).audioBlob),
+        audioBlobSize: (m.type === 'audio' && (m as AudioMessage).audioBlob?.size) || 0,
+        hasTranscription: !!(m.type === 'audio' && (m as AudioMessage).transcription)
+      })));
+      
       const messageIds = messages.map(msg => msg.id);
+      console.log('🔗 InputPanel: Message IDs to process:', messageIds);
+      
       const diagram = await generateDiagram(messageIds);
       
       if (diagram) {
-        console.log('Diagram generated successfully:', diagram);
+        console.log('✅ InputPanel: Diagram generated successfully:', diagram);
+      } else {
+        console.warn('⚠️ InputPanel: No diagram returned');
       }
     } catch (error) {
-      console.error('Failed to generate diagram:', error);
+      console.error('❌ InputPanel: Failed to generate diagram:', error);
     }
   };
 
