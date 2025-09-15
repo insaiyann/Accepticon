@@ -104,6 +104,28 @@
   cursor: not-allowed;
 }
 
+/* Download icon styles */
+.control-button .icon.text-blue-600 {
+  color: #2563eb;
+}
+
+.control-button .icon.text-green-600 {
+  color: #059669;
+}
+
+.control-button:hover:not(:disabled) .icon.text-blue-600 {
+  color: #1d4ed8;
+}
+
+.control-button:hover:not(:disabled) .icon.text-green-600 {
+  color: #047857;
+}
+
+.control-button:disabled .icon.text-blue-600,
+.control-button:disabled .icon.text-green-600 {
+  color: var(--nb-text-disabled);
+}
+
 /* Content area */
 .mermaid-content {
   flex: 1;

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
 import { Icon } from '../common/Icon';
+import { FiletypeSvg, FiletypePng } from 'react-bootstrap-icons';
 import './MermaidViewer.css';
 
 interface MermaidViewerProps {
@@ -298,7 +299,7 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
             title="Download SVG"
             disabled={!svgElement}
           >
-            <Icon name="file-code" size={16} className="icon" />
+            <FiletypeSvg size={16} className="icon text-blue-600" />
           </button>
           
           <button
@@ -307,7 +308,7 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
             title="Download PNG"
             disabled={!svgElement}
           >
-            <Icon name="file-image" size={16} className="icon" />
+            <FiletypePng size={16} className="icon text-green-600" />
           </button>
           
           <button

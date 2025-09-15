@@ -11,11 +11,14 @@
   },
   "dependencies": {
     "@azure/openai": "^2.0.0",
+    "@heroicons/react": "^2.2.0",
     "@types/dom-speech-recognition": "^0.0.6",
+    "bootstrap-icons": "^1.13.1",
     "mermaid": "^10.9.4",
     "microsoft-cognitiveservices-speech-sdk": "^1.45.0",
     "openai": "^4.104.0",
     "react": "^19.1.1",
+    "react-bootstrap-icons": "^1.11.6",
     "react-dom": "^19.1.1",
     "vite-plugin-pwa": "^1.0.3",
     "workbox-window": "^7.3.0"
