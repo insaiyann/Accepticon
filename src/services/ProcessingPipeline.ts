@@ -115,6 +115,13 @@ class ProcessingPipelineService {
         content: m.type === 'text' ? m.content?.substring(0, 50) + '...' : 'Audio message'
       })));
       
+      console.log(`🎤 CRITICAL DEBUG - Messages by type:`, {
+        textMessages: validMessages.filter(m => m.type === 'text').length,
+        audioMessages: validMessages.filter(m => m.type === 'audio').length,
+        otherMessages: validMessages.filter(m => m.type !== 'text' && m.type !== 'audio').length,
+        allTypes: validMessages.map(m => m.type)
+      });
+      
       if (validMessages.length === 0) {
         throw new Error('No valid messages found');
       }
