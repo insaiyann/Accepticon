@@ -8,23 +8,23 @@ async function debugIndexedDB() {
   console.log('📊 Checking IndexedDB contents...');
   
   return new Promise((resolve) => {
-    const request = indexedDB.open('AcceptiConDB', 1);
+    const request = indexedDB.open('MermaidPWADB', 1); // Fixed database name!
     
     request.onsuccess = () => {
       const db = request.result;
       
       // Check MESSAGES store
-      const textTransaction = db.transaction(['MESSAGES'], 'readonly');
-      const textStore = textTransaction.objectStore('MESSAGES');
+      const textTransaction = db.transaction(['messages'], 'readonly');
+      const textStore = textTransaction.objectStore('messages');
       const textRequest = textStore.getAll();
       
       textRequest.onsuccess = () => {
         console.log('📝 Text Messages:', textRequest.result);
       };
       
-      // Check AUDIO_MESSAGES store
-      const audioTransaction = db.transaction(['AUDIO_MESSAGES'], 'readonly');
-      const audioStore = audioTransaction.objectStore('AUDIO_MESSAGES');
+      // Check AUDIO_MESSAGES store (note: store name is 'audioMessages')
+      const audioTransaction = db.transaction(['audioMessages'], 'readonly');
+      const audioStore = audioTransaction.objectStore('audioMessages');
       const audioRequest = audioStore.getAll();
       
       audioRequest.onsuccess = () => {

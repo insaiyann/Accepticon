@@ -7,20 +7,20 @@ console.log('🧪 Starting Manual Audio Debug Test...');
 async function testIndexedDBContents() {
   console.log('\n=== TEST 1: IndexedDB Contents ===');
   
-  const request = indexedDB.open('AcceptiConDB', 1);
+  const request = indexedDB.open('MermaidPWADB', 1); // Fixed database name!
   
   return new Promise((resolve) => {
     request.onsuccess = () => {
       const db = request.result;
       
-      // Check AUDIO_MESSAGES store
-      const audioTransaction = db.transaction(['AUDIO_MESSAGES'], 'readonly');
-      const audioStore = audioTransaction.objectStore('AUDIO_MESSAGES');
+      // Check audioMessages store (note: store name is 'audioMessages', not 'AUDIO_MESSAGES')
+      const audioTransaction = db.transaction(['audioMessages'], 'readonly');
+      const audioStore = audioTransaction.objectStore('audioMessages');
       const audioRequest = audioStore.getAll();
       
       audioRequest.onsuccess = () => {
         const audioMessages = audioRequest.result;
-        console.log(`📊 Found ${audioMessages.length} audio messages in AUDIO_MESSAGES store:`);
+        console.log(`📊 Found ${audioMessages.length} audio messages in audioMessages store:`);
         
         audioMessages.forEach((msg, i) => {
           console.log(`  ${i + 1}. ${msg.id} - Size: ${msg.audioBlob?.size || 0} bytes, Type: ${msg.audioBlob?.type || 'unknown'}`);
@@ -72,14 +72,14 @@ async function testDiagramGeneration() {
   // Try to access the processing pipeline directly
   try {
     // Create a manual test by accessing the IndexedDB service
-    const request = indexedDB.open('AcceptiConDB', 1);
+    const request = indexedDB.open('MermaidPWADB', 1); // Fixed database name!
     
     request.onsuccess = () => {
       const db = request.result;
       
       // Get first audio message
-      const transaction = db.transaction(['AUDIO_MESSAGES'], 'readonly');
-      const store = transaction.objectStore('AUDIO_MESSAGES');
+      const transaction = db.transaction(['audioMessages'], 'readonly'); // Fixed store name!
+      const store = transaction.objectStore('audioMessages');
       const getRequest = store.getAll();
       
       getRequest.onsuccess = () => {
@@ -111,14 +111,14 @@ async function testDiagramGeneration() {
 async function testAudioBlobIntegrity() {
   console.log('\n=== TEST 4: Audio Blob Integrity ===');
   
-  const request = indexedDB.open('AcceptiConDB', 1);
+  const request = indexedDB.open('MermaidPWADB', 1); // Fixed database name!
   
   return new Promise((resolve) => {
     request.onsuccess = () => {
       const db = request.result;
       
-      const transaction = db.transaction(['AUDIO_MESSAGES'], 'readonly');
-      const store = transaction.objectStore('AUDIO_MESSAGES');
+      const transaction = db.transaction(['audioMessages'], 'readonly'); // Fixed store name!
+      const store = transaction.objectStore('audioMessages');
       const getRequest = store.getAll();
       
       getRequest.onsuccess = () => {
