@@ -58,8 +58,8 @@ const iconPaths: Record<IconName, string> = {
   warning: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01',
   error: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zM15 9l-6 6M9 9l6 6',
   success: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zM9 12l2 2 4-4',
-  'file-image': 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 15s1-1 4-1 5 2 5 2v2H9z',
-  'file-code': 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13l-3.5 3.5L16 20M8 13l3.5 3.5L8 20'
+  'file-image': 'M12 3v12m0 0l-4-4m4 4l4-4M4 17h16v4H4z',
+  'file-code': 'M12 3v12m0 0l-4-4m4 4l4-4M4 17h16v4H4z'
 };
 
 export const Icon: React.FC<IconProps> = ({ 
@@ -73,6 +73,83 @@ export const Icon: React.FC<IconProps> = ({
   if (!path) {
     console.warn(`Icon "${name}" not found`);
     return null;
+  }
+
+  // Special handling for download icons with text labels
+  if (name === 'file-image') {
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        className={`icon icon-${name} ${className}`}
+      >
+        <path 
+          d="M12 3v12m0 0l-4-4m4 4l4-4" 
+          stroke={color} 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+        />
+        <rect 
+          x="4" 
+          y="17" 
+          width="16" 
+          height="4" 
+          rx="1" 
+          fill={color}
+        />
+        <text 
+          x="6" 
+          y="20" 
+          fontSize="3" 
+          fill="white"
+          fontFamily="Inter, system-ui, sans-serif"
+          fontWeight="600"
+        >
+          PNG
+        </text>
+      </svg>
+    );
+  }
+
+  if (name === 'file-code') {
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        className={`icon icon-${name} ${className}`}
+      >
+        <path 
+          d="M12 3v12m0 0l-4-4m4 4l4-4" 
+          stroke={color} 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+        />
+        <rect 
+          x="4" 
+          y="17" 
+          width="16" 
+          height="4" 
+          rx="1" 
+          fill={color}
+        />
+        <text 
+          x="6.5" 
+          y="20" 
+          fontSize="3" 
+          fill="white"
+          fontFamily="Inter, system-ui, sans-serif"
+          fontWeight="600"
+        >
+          SVG
+        </text>
+      </svg>
+    );
   }
 
   return (
