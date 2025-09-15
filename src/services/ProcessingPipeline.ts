@@ -84,6 +84,8 @@ class ProcessingPipelineService {
     const startTime = Date.now();
 
     try {
+      console.log(`🚀 Starting diagram generation for ${messageIds.length} message(s):`, messageIds);
+
       // 1. Retrieve all messages
       const messages = await Promise.all(
         messageIds.map(id => indexedDBService.getMessage(id))
@@ -91,39 +93,67 @@ class ProcessingPipelineService {
 
       const validMessages = messages.filter(msg => msg !== null) as Message[];
       
+      console.log(`📋 Retrieved ${validMessages.length} valid messages:`, validMessages.map(m => ({
+        id: m.id,
+        type: m.type,
+        hasContent: !!m.content,
+        hasTranscription: !!(m as AudioMessage).transcription,
+        content: m.type === 'text' ? m.content?.substring(0, 50) + '...' : 'Audio message'
+      })));
+      
       if (validMessages.length === 0) {
         throw new Error('No valid messages found');
       }
 
       // 2. Process audio messages to get transcriptions
+      console.log(`🎤 Processing audio messages for transcription...`);
       const processedMessages = await this.processAudioMessages(validMessages);
 
       // 3. Combine all text content
+      console.log(`📝 Combining text content from processed messages...`);
       const combinedText = this.combineMessageContent(processedMessages);
       
+      console.log(`📄 Combined text content (${combinedText.length} chars):`, combinedText);
+      
       if (!combinedText.trim()) {
+        console.error(`❌ No text content found after processing ${processedMessages.length} messages`);
+        console.log(`🔍 Message details:`, processedMessages.map(m => ({
+          id: m.id,
+          type: m.type,
+          content: m.content,
+          transcription: (m as AudioMessage).transcription
+        })));
         throw new Error('No text content found to generate diagram');
       }
 
       // 4. Generate mermaid diagram
+      console.log(`🎨 Generating mermaid diagram from text content...`);
       const diagramResult = await openAIService.generateMermaidDiagram(
         combinedText,
         options
       );
 
+      console.log(`✨ Diagram generated successfully:`, {
+        diagramType: diagramResult.diagramType,
+        title: diagramResult.title,
+        codeLength: diagramResult.mermaidCode.length
+      });
+
       // 5. Cache the result
+      const inputHash = this.generateInputHash(combinedText, options);
       const cachedDiagram = await indexedDBService.cacheDiagram({
+        inputHash,
         messageIds,
         mermaidCode: diagramResult.mermaidCode,
         title: diagramResult.title,
         diagramType: diagramResult.diagramType,
         generatedAt: Date.now(),
-        options
+        options: options as Record<string, unknown>
       });
 
       const processingTime = Date.now() - startTime;
 
-      console.log(`Successfully generated diagram in ${processingTime}ms`);
+      console.log(`🎉 Successfully generated diagram in ${processingTime}ms`);
 
       return {
         success: true,
@@ -138,7 +168,8 @@ class ProcessingPipelineService {
       const processingTime = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
-      console.error('Failed to generate diagram:', errorMessage);
+      console.error(`❌ Failed to generate diagram after ${processingTime}ms:`, errorMessage);
+      console.error(`🔍 Error details:`, error);
 
       return {
         success: false,
@@ -174,6 +205,9 @@ class ProcessingPipelineService {
    */
   private async processAudioMessages(messages: Message[]): Promise<Message[]> {
     const processedMessages: Message[] = [];
+    const audioMessages = messages.filter(m => m.type === 'audio') as AudioMessage[];
+    
+    console.log(`🎵 Found ${audioMessages.length} audio message(s) to process`);
 
     for (const message of messages) {
       if (message.type === 'audio' && (message as AudioMessage).audioBlob && !message.transcription) {
@@ -182,6 +216,16 @@ class ProcessingPipelineService {
           
           // Convert blob to array buffer for speech service
           const audioMessage = message as AudioMessage;
+          
+          // Validate audio blob
+          if (!audioMessage.audioBlob || audioMessage.audioBlob.size === 0) {
+            console.warn(`⚠️  Audio message ${message.id} has no audio blob or empty blob`);
+            processedMessages.push(message);
+            continue;
+          }
+
+          console.log(`🔊 Audio blob size: ${audioMessage.audioBlob.size} bytes, duration: ${audioMessage.duration}ms`);
+          
           const transcriptionResult = await speechService.transcribeAudio(audioMessage.audioBlob!);
           const transcriptionText = transcriptionResult.text;
           
@@ -209,11 +253,16 @@ class ProcessingPipelineService {
           // Include original message even if transcription fails
           processedMessages.push(message);
         }
+      } else if (message.type === 'audio' && message.transcription) {
+        console.log(`♻️  Audio message ${message.id} already has transcription: "${message.transcription}"`);
+        processedMessages.push(message);
       } else {
+        console.log(`📝 Text message ${message.id}: "${message.content?.substring(0, 50)}..."`);
         processedMessages.push(message);
       }
     }
 
+    console.log(`✨ Finished processing ${processedMessages.length} messages`);
     return processedMessages;
   }
 
@@ -232,6 +281,21 @@ class ProcessingPipelineService {
     }
 
     return textParts.join('\n\n').trim();
+  }
+
+  /**
+   * Generate a hash for input content and options for caching
+   */
+  private generateInputHash(content: string, options: MermaidGenerationOptions): string {
+    const hashInput = content + JSON.stringify(options);
+    // Simple hash function - in production, consider using a proper hash library
+    let hash = 0;
+    for (let i = 0; i < hashInput.length; i++) {
+      const char = hashInput.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return `hash_${Math.abs(hash)}_${Date.now()}`;
   }
 
   /**
