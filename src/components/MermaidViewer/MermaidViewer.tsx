@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
+import { Icon } from '../common/Icon';
 import './MermaidViewer.css';
 
 interface MermaidViewerProps {
@@ -163,9 +164,53 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
   };
 
   // Toggle fullscreen mode
-  const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen);
+  const toggleFullscreen = async () => {
+    if (!isFullscreen) {
+      try {
+        // Enter fullscreen using the browser's Fullscreen API
+        const element = containerRef.current?.closest('.mermaid-viewer') as HTMLElement;
+        if (element && element.requestFullscreen) {
+          await element.requestFullscreen();
+          setIsFullscreen(true);
+        } else {
+          // Fallback to CSS-only fullscreen if Fullscreen API is not supported
+          setIsFullscreen(true);
+        }
+      } catch (error) {
+        console.warn('Fullscreen API not supported, using CSS fallback:', error);
+        // Fallback to CSS-only fullscreen
+        setIsFullscreen(true);
+      }
+    } else {
+      try {
+        // Exit fullscreen
+        if (document.fullscreenElement && document.exitFullscreen) {
+          await document.exitFullscreen();
+          setIsFullscreen(false);
+        } else {
+          // Fallback for CSS-only fullscreen
+          setIsFullscreen(false);
+        }
+      } catch (error) {
+        console.warn('Error exiting fullscreen:', error);
+        setIsFullscreen(false);
+      }
+    }
   };
+
+  // Listen for fullscreen changes
+  React.useEffect(() => {
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        setIsFullscreen(false);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   // Reset zoom and pan
   const resetZoom = () => {
@@ -244,7 +289,7 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
             title="Reset Zoom"
             disabled={!svgElement}
           >
-            🔍
+            <Icon name="refresh" size={16} className="icon" />
           </button>
           
           <button
@@ -253,7 +298,7 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
             title="Download SVG"
             disabled={!svgElement}
           >
-            📥
+            <Icon name="download" size={16} className="icon" />
           </button>
           
           <button
@@ -262,7 +307,7 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
             title="Download PNG"
             disabled={!svgElement}
           >
-            🖼️
+            <Icon name="download" size={16} className="icon" />
           </button>
           
           <button
@@ -270,7 +315,11 @@ const MermaidViewer: React.FC<MermaidViewerProps> = ({
             onClick={toggleFullscreen}
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           >
-            {isFullscreen ? '🗗' : '🗖'}
+            <Icon 
+              name={isFullscreen ? 'minimize' : 'fullscreen'} 
+              size={16} 
+              className="icon" 
+            />
           </button>
         </div>
       </div>
