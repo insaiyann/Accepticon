@@ -693,7 +693,8 @@ body {
   border-radius: 12px !important;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  box-shadow: 0 4px 6px rgba(103, 80, 164, 0.1), 0 1px 3px rgba(103, 80, 164, 0.08) !important;
+  box-shadow: 0 4px 6px rgba(103, 80, 164, 0.1),
+    0 1px 3px rgba(103, 80, 164, 0.08) !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -710,13 +711,18 @@ body {
 }
 
 .btn.btn-primary.generate-button::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(103, 80, 164, 0.1), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(103, 80, 164, 0.1),
+    transparent
+  );
   transition: left 0.5s ease;
 }
 
@@ -729,7 +735,8 @@ body {
   color: white !important;
   border-color: var(--nb-accent-purple) !important;
   transform: translateY(-2px) !important;
-  box-shadow: 0 10px 25px rgba(103, 80, 164, 0.3), 0 4px 12px rgba(103, 80, 164, 0.2) !important;
+  box-shadow: 0 10px 25px rgba(103, 80, 164, 0.3),
+    0 4px 12px rgba(103, 80, 164, 0.2) !important;
 }
 
 /* Additional specific hover rule to ensure it works */
