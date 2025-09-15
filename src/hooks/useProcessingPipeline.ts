@@ -74,24 +74,12 @@ export const useProcessingPipeline = () => {
       setState(prev => ({ 
         ...prev, 
         isProcessing: true, 
-        progress: 'Checking cache...', 
+        progress: 'Processing messages...', 
         error: null 
       }));
 
-      // Check for cached diagram first
-      const cached = await processingPipelineService.getCachedDiagram(messageIds);
-      if (cached) {
-        setState(prev => ({ 
-          ...prev, 
-          isProcessing: false, 
-          progress: 'Loaded from cache',
-          currentDiagram: cached
-        }));
-        return cached;
-      }
-
-      // Generate new diagram
-      setState(prev => ({ ...prev, progress: 'Processing messages...' }));
+      // Skip cache check - always generate fresh diagram
+      // NOTE: Cache check removed to ensure fresh OpenAI calls for each diagram generation
       
       const result = await processingPipelineService.generateDiagramFromMessages(messageIds, options);
       
