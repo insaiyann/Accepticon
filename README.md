@@ -75,22 +75,20 @@ graph LR
 
 ```mermaid
 graph TD
-    A[📋 Message Selection] --> B{🔍 Cache Check}
-    B -->|Hit| C[📦 Return Cached Diagram]
-    B -->|Miss| D[🎤 Audio Transcription]
-    D --> E[📝 Text Consolidation]
-    E --> F[🤖 Azure OpenAI Processing]
-    F --> G[🎨 Mermaid Code Generation]
-    G --> H[💾 Cache Storage]
-    H --> I[🖼️ Diagram Rendering]
+    A[📋 Message Selection] --> B[🎤 Audio Transcription]
+    B --> C[📝 Text Consolidation]
+    C --> D[🤖 Azure OpenAI Processing]
+    D --> E[🎨 Mermaid Code Generation]
+    E --> F[💾 Result Storage]
+    F --> G[🖼️ Diagram Rendering]
 ```
 
 **Process Flow:**
 1. **Input Aggregation**: Collect selected text and audio messages
 2. **Sequential Transcription**: Convert all audio to text using optimized Azure Speech
 3. **Content Synthesis**: Combine all text content for analysis
-4. **AI Processing**: Generate appropriate Mermaid diagram code via Azure OpenAI
-5. **Caching**: Store results for performance optimization
+4. **AI Processing**: Generate appropriate Mermaid diagram code via Azure OpenAI (fresh call every time)
+5. **Result Storage**: Store results for reference (no cache checking on generation)
 6. **Visualization**: Render interactive diagrams with Mermaid.js
 
 ### Data Management Pipeline
@@ -222,11 +220,12 @@ window.debugSpeech.testCompleteAudioPipeline()
 
 ## 🎯 Performance Optimizations
 
-- **Caching Strategy**: Diagram result caching to avoid redundant processing
+- **Fresh Generation**: Always calls OpenAI API to ensure latest diagram generation techniques
 - **Queue Processing**: Background task execution to maintain UI responsiveness
 - **Audio Optimization**: Format conversion and quality settings for speech recognition
 - **Lazy Loading**: Dynamic imports for large dependencies
 - **PWA Features**: Service worker for offline functionality
+- **Result Storage**: Diagram results stored for reference (not used for cache bypassing)
 
 ## 🔮 Future Enhancements
 
