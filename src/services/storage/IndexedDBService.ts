@@ -24,12 +24,82 @@ class IndexedDBService {
       request.onsuccess = () => {
         this.db = request.result;
         this.isInitialized = true;
-        resolve();
+        
+        // Verify all required stores exist
+        try {
+          this.verifyDatabaseSchema();
+          console.log('✅ IndexedDB: Database schema verified');
+          resolve();
+        } catch (error) {
+          console.warn('⚠️ IndexedDB: Schema verification failed, recreating database...', error);
+          this.recreateDatabase().then(resolve).catch(reject);
+        }
       };
 
       request.onupgradeneeded = (event) => {
+        console.log('🔄 IndexedDB: Database upgrade needed, creating object stores...');
         const db = (event.target as IDBOpenDBRequest).result;
         this.createObjectStores(db);
+      };
+    });
+  }
+
+  /**
+   * Verify that all required object stores exist
+   */
+  private verifyDatabaseSchema(): void {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+
+    const requiredStores = [
+      STORES.MESSAGES,
+      STORES.AUDIO_MESSAGES,
+      STORES.IMAGE_MESSAGES,
+      STORES.THREADS,
+      STORES.PROCESSING_QUEUE,
+      STORES.DIAGRAM_CACHE,
+      STORES.APP_SETTINGS
+    ];
+
+    const missingStores = requiredStores.filter(store => !this.db!.objectStoreNames.contains(store));
+    
+    if (missingStores.length > 0) {
+      throw new Error(`Missing object stores: ${missingStores.join(', ')}`);
+    }
+  }
+
+  /**
+   * Recreate the database when schema is corrupted
+   */
+  private async recreateDatabase(): Promise<void> {
+    console.log('🔄 IndexedDB: Recreating database due to schema mismatch...');
+    
+    // Close current connection
+    if (this.db) {
+      this.db.close();
+      this.db = null;
+      this.isInitialized = false;
+    }
+
+    // Delete the existing database
+    return new Promise((resolve, reject) => {
+      const deleteRequest = indexedDB.deleteDatabase(DB_NAME);
+      
+      deleteRequest.onsuccess = () => {
+        console.log('✅ IndexedDB: Old database deleted, creating new one...');
+        // Reinitialize with fresh database
+        this.initialize().then(resolve).catch(reject);
+      };
+      
+      deleteRequest.onerror = () => {
+        console.error('❌ IndexedDB: Failed to delete corrupted database');
+        reject(new Error('Failed to recreate database'));
+      };
+      
+      deleteRequest.onblocked = () => {
+        console.warn('⚠️ IndexedDB: Database deletion blocked, please close other tabs');
+        reject(new Error('Database deletion blocked - close other tabs and try again'));
       };
     });
   }
@@ -97,10 +167,28 @@ class IndexedDBService {
   }
 
   /**
+   * Validate that required object stores exist
+   */
+  private validateObjectStores(storeNames: string[]): void {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+
+    for (const storeName of storeNames) {
+      if (!this.db.objectStoreNames.contains(storeName)) {
+        console.error(`❌ IndexedDB: Object store '${storeName}' not found in database`);
+        console.log(`📋 IndexedDB: Available stores:`, Array.from(this.db.objectStoreNames));
+        throw new Error(`Object store '${storeName}' not found. Database may need to be recreated.`);
+      }
+    }
+  }
+
+  /**
    * Add a text message
    */
   async addTextMessage(message: Omit<TextMessage, 'id'>): Promise<TextMessage> {
     await this.ensureInitialized();
+    this.validateObjectStores([STORES.MESSAGES]);
     
     const textMessage: TextMessage = {
       ...message,
@@ -123,6 +211,7 @@ class IndexedDBService {
    */
   async addAudioMessage(message: Omit<AudioMessage, 'id'>): Promise<AudioMessage> {
     await this.ensureInitialized();
+    this.validateObjectStores([STORES.AUDIO_MESSAGES]);
     
     const audioMessage: AudioMessage = {
       ...message,
@@ -186,6 +275,7 @@ class IndexedDBService {
    */
   async getAllMessages(): Promise<(TextMessage | AudioMessage | ImageMessage)[]> {
     await this.ensureInitialized();
+    this.validateObjectStores([STORES.MESSAGES, STORES.AUDIO_MESSAGES, STORES.IMAGE_MESSAGES]);
 
     console.log('🔍 IndexedDB: Getting all messages...');
 
@@ -853,6 +943,7 @@ class IndexedDBService {
    */
   async getAllThreads(): Promise<Thread[]> {
     await this.ensureInitialized();
+    this.validateObjectStores([STORES.THREADS]);
 
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([STORES.THREADS], 'readonly');
@@ -1097,6 +1188,40 @@ class IndexedDBService {
 
       getRequest.onerror = () => reject(new Error('Failed to get parent thread'));
     });
+  }
+
+  /**
+   * Get database status and information for debugging
+   */
+  getDatabaseStatus(): {
+    isInitialized: boolean;
+    hasConnection: boolean;
+    version: number | null;
+    availableStores: string[];
+    requiredStores: string[];
+    missingStores: string[];
+  } {
+    const requiredStores = [
+      STORES.MESSAGES,
+      STORES.AUDIO_MESSAGES,
+      STORES.IMAGE_MESSAGES,
+      STORES.THREADS,
+      STORES.PROCESSING_QUEUE,
+      STORES.DIAGRAM_CACHE,
+      STORES.APP_SETTINGS
+    ];
+
+    const availableStores = this.db ? Array.from(this.db.objectStoreNames) : [];
+    const missingStores = requiredStores.filter(store => !availableStores.includes(store));
+
+    return {
+      isInitialized: this.isInitialized,
+      hasConnection: this.db !== null,
+      version: this.db?.version || null,
+      availableStores,
+      requiredStores,
+      missingStores
+    };
   }
 
   /**
