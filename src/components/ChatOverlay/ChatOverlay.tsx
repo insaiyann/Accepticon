@@ -4,90 +4,33 @@ import type { TextMessage, AudioMessage } from '../../types/Message';
 import { Icon } from '../common/Icon';
 import './ChatOverlay.css';
 
-interface BlobWithDuration extends Blob {
-  estimatedDuration?: number;
-}
-
 interface AudioMessageProps {
   audioData: Blob | undefined;
-  estimatedDuration?: number; // Add estimated duration prop
+  duration: number;
 }
 
-const AudioMessage: React.FC<AudioMessageProps> = ({ audioData, estimatedDuration }) => {
+const AudioMessage: React.FC<AudioMessageProps> = ({ audioData, duration }) => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [duration, setDuration] = useState<string>('0:00');
   const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
-    // If we have an estimated duration, use it as fallback
-    if (estimatedDuration) {
-      const minutes = Math.floor(estimatedDuration / 60);
-      const seconds = Math.floor(estimatedDuration % 60);
-      setDuration(`${minutes}:${seconds.toString().padStart(2, '0')}`);
-    }
-
     if (audioData && audioRef.current) {
       const audio = audioRef.current;
       const audioUrl = URL.createObjectURL(audioData);
       audio.src = audioUrl;
 
-      const handleLoadedMetadata = () => {
-        console.log('Audio metadata loaded, duration:', audio.duration);
-        if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
-          const durationInSeconds = Math.floor(audio.duration);
-          const minutes = Math.floor(durationInSeconds / 60);
-          const seconds = durationInSeconds % 60;
-          setDuration(`${minutes}:${seconds.toString().padStart(2, '0')}`);
-        }
-      };
-
-      const handleCanPlayThrough = () => {
-        console.log('Audio can play through, duration:', audio.duration);
-        if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
-          const durationInSeconds = Math.floor(audio.duration);
-          const minutes = Math.floor(durationInSeconds / 60);
-          const seconds = durationInSeconds % 60;
-          setDuration(`${minutes}:${seconds.toString().padStart(2, '0')}`);
-        }
-      };
-
-      const handleTimeUpdate = () => {
-        // Could be used for progress tracking if needed
-      };
-
       const handleEnded = () => {
         setIsPlaying(false);
       };
 
-      const handleLoadedData = () => {
-        console.log('Audio data loaded, duration:', audio.duration);
-        if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
-          const durationInSeconds = Math.floor(audio.duration);
-          const minutes = Math.floor(durationInSeconds / 60);
-          const seconds = durationInSeconds % 60;
-          setDuration(`${minutes}:${seconds.toString().padStart(2, '0')}`);
-        }
-      };
-
-      audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.addEventListener('loadeddata', handleLoadedData);
-      audio.addEventListener('canplaythrough', handleCanPlayThrough);
-      audio.addEventListener('timeupdate', handleTimeUpdate);
       audio.addEventListener('ended', handleEnded);
 
-      // Force load the audio
-      audio.load();
-
       return () => {
-        audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-        audio.removeEventListener('loadeddata', handleLoadedData);
-        audio.removeEventListener('canplaythrough', handleCanPlayThrough);
-        audio.removeEventListener('timeupdate', handleTimeUpdate);
         audio.removeEventListener('ended', handleEnded);
         URL.revokeObjectURL(audioUrl);
       };
     }
-  }, [audioData, estimatedDuration]);
+  }, [audioData]);
 
   const handlePlayPause = () => {
     if (audioRef.current) {
@@ -99,6 +42,12 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ audioData, estimatedDuratio
         setIsPlaying(true);
       }
     }
+  };
+
+  const formatDuration = (d: number) => {
+    const minutes = Math.floor(d / 60);
+    const seconds = Math.floor(d % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   if (!audioData) {
@@ -115,7 +64,7 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ audioData, estimatedDuratio
       <div className="message-audio-header">
         <Icon name="mic" size={16} />
         <span>Audio Message</span>
-        <span className="audio-duration">{duration}</span>
+        <span className="audio-duration">{formatDuration(duration)}</span>
       </div>
       <div className="message-audio-controls">
         <button 
@@ -147,7 +96,11 @@ export interface ChatOverlayProps {
   onClose: () => void;
   thread: Thread | null;
   messages: ThreadMessage[] | (TextMessage | AudioMessage)[]; // Accept both types
-  onSendMessage: (content: string, type: 'text' | 'audio' | 'image', data?: File | Blob) => void;
+  onSendMessage: (
+    content: string,
+    type: 'text' | 'audio' | 'image',
+    options?: { data?: File | Blob; duration?: number }
+  ) => void;
   isProcessing?: boolean;
 }
 
@@ -179,7 +132,8 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({
         timestamp: message.timestamp,
         sender: message.sender,
         data: message.data,
-        audioBlob: message.type === 'audio' ? message.data : undefined
+        audioBlob: message.type === 'audio' ? message.data : undefined,
+        duration: message.duration,
       };
     } else {
       // It's a TextMessage or AudioMessage
@@ -190,7 +144,8 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({
         timestamp: message.timestamp,
         sender: 'user' as const, // Default to user for persisted messages
         data: message.type === 'audio' ? (message as AudioMessage).audioBlob : undefined,
-        audioBlob: message.type === 'audio' ? (message as AudioMessage).audioBlob : undefined
+        audioBlob: message.type === 'audio' ? (message as AudioMessage).audioBlob : undefined,
+        duration: message.type === 'audio' ? (message as AudioMessage).duration : undefined,
       };
     }
   };
@@ -263,15 +218,10 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
         const recordingDuration = recordingStartTime ? (Date.now() - recordingStartTime) / 1000 : 0;
         
-        // Add the duration as a property to the blob for later retrieval
-        Object.defineProperty(audioBlob, 'estimatedDuration', {
-          value: recordingDuration,
-          writable: false,
-          enumerable: false,
-          configurable: false
+        onSendMessage('Audio message', 'audio', {
+          data: audioBlob,
+          duration: recordingDuration,
         });
-        
-        onSendMessage('Audio message', 'audio', audioBlob);
         
         // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
@@ -288,7 +238,7 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       if (file.type.startsWith('image/')) {
-        onSendMessage(file.name, 'image', file);
+        onSendMessage(file.name, 'image', { data: file });
       }
     }
     // Reset input
@@ -324,7 +274,7 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
       if (file.type.startsWith('image/')) {
-        onSendMessage(file.name, 'image', file);
+        onSendMessage(file.name, 'image', { data: file });
       }
     }
   };
@@ -409,9 +359,9 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({
                       <div className="message-text">{normalizedMessage.content}</div>
                     )}
                     {normalizedMessage.type === 'audio' && (
-                      <AudioMessage 
+                      <AudioMessage
                         audioData={normalizedMessage.audioBlob}
-                        estimatedDuration={normalizedMessage.audioBlob && 'estimatedDuration' in normalizedMessage.audioBlob ? (normalizedMessage.audioBlob as BlobWithDuration).estimatedDuration : undefined}
+                        duration={normalizedMessage.duration || 0}
                       />
                     )}
                     {normalizedMessage.type === 'image' && (

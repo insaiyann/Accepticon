@@ -8,11 +8,6 @@ import { useProcessingPipelineContext } from '../../hooks/useProcessingPipelineC
 import type { Thread, ThreadMessage } from '../../types/Thread';
 import type { AudioMessage } from '../../types/Message';
 
-// Interface for audio blob with duration
-interface AudioBlobWithDuration extends Blob {
-  estimatedDuration?: number;
-}
-
 export const InputPanel: React.FC = () => {
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
   const [isChatOverlayOpen, setIsChatOverlayOpen] = useState(false);
@@ -60,32 +55,31 @@ export const InputPanel: React.FC = () => {
     }
   };
 
-  const handleSendMessage = async (content: string, type: 'text' | 'audio' | 'image', data?: File | Blob) => {
+  const handleSendMessage = async (
+    content: string,
+    type: 'text' | 'audio' | 'image',
+    options?: { data?: File | Blob; duration?: number }
+  ) => {
     if (!selectedThread) return;
     
     try {
-      console.log('📤 InputPanel: Sending message:', { content, type, hasData: !!data });
+      console.log('📤 InputPanel: Sending message:', { content, type, options });
       
       if (type === 'text') {
         await addTextMessage(content);
         console.log('✅ InputPanel: Text message saved to IndexedDB');
-      } else if (type === 'audio' && data instanceof Blob) {
-        // Get duration from the audio blob's estimatedDuration property
-        const audioBlobWithDuration = data as AudioBlobWithDuration;
-        const duration = audioBlobWithDuration.estimatedDuration ? 
-          Math.round(audioBlobWithDuration.estimatedDuration * 1000) : // Convert seconds to milliseconds
-          5000; // Default fallback duration
+      } else if (type === 'audio' && options?.data instanceof Blob) {
+        const durationInSeconds = options.duration || 0;
         
-        console.log('🎤 InputPanel: Audio duration extracted:', {
-          estimatedDuration: audioBlobWithDuration.estimatedDuration,
-          durationMs: duration,
-          blobSize: data.size
+        console.log('🎤 InputPanel: Audio duration received:', {
+          duration: durationInSeconds,
+          blobSize: options.data.size
         });
         
-        await addAudioMessage(data, duration);
+        await addAudioMessage(options.data, durationInSeconds);
         console.log('✅ InputPanel: Audio message saved to IndexedDB');
       } else {
-        console.warn('⚠️ InputPanel: Unsupported message type or missing data:', { type, hasData: !!data });
+        console.warn('⚠️ InputPanel: Unsupported message type or missing data:', { type, options });
         return;
       }
       
@@ -99,7 +93,8 @@ export const InputPanel: React.FC = () => {
         content,
         timestamp: Date.now(),
         processed: false,
-        data,
+        data: options?.data,
+        duration: options?.duration,
       };
       
       setThreadMessages(prev => [...prev, newMessage]);
