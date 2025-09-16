@@ -1,5 +1,6 @@
 import { DB_NAME, DB_VERSION, STORES } from './StorageConfig';
 import type { Message, AudioMessage, TextMessage, ProcessingQueueItem, DiagramCache, StorageQuota } from '../../types/Message';
+import type { Thread, ThreadHierarchy, CreateThreadOptions, UpdateThreadOptions } from '../../types/Thread';
 
 class IndexedDBService {
   private db: IDBDatabase | null = null;
@@ -49,6 +50,14 @@ class IndexedDBService {
       const audioStore = db.createObjectStore(STORES.AUDIO_MESSAGES, { keyPath: 'id' });
       audioStore.createIndex('timestamp', 'timestamp', { unique: false });
       audioStore.createIndex('processed', 'processed', { unique: false });
+    }
+
+    // Threads store
+    if (!db.objectStoreNames.contains(STORES.THREADS)) {
+      const threadStore = db.createObjectStore(STORES.THREADS, { keyPath: 'id' });
+      threadStore.createIndex('parentId', 'parentId', { unique: false });
+      threadStore.createIndex('createdAt', 'createdAt', { unique: false });
+      threadStore.createIndex('updatedAt', 'updatedAt', { unique: false });
     }
 
     // Processing queue store
@@ -610,6 +619,264 @@ class IndexedDBService {
       };
 
       request.onerror = () => reject(new Error('Failed to cleanup old data'));
+    });
+  }
+
+  // ===== THREAD OPERATIONS =====
+
+  /**
+   * Add a new thread
+   */
+  async addThread(options: CreateThreadOptions): Promise<Thread> {
+    await this.ensureInitialized();
+    
+    const now = Date.now();
+    const thread: Thread = {
+      id: `thread_${now}_${Math.random().toString(36).substr(2, 9)}`,
+      title: options.title,
+      parentId: options.parentId,
+      childIds: [],
+      messageIds: [],
+      collapsed: false,
+      createdAt: now,
+      updatedAt: now,
+      metadata: {
+        messageCount: 0,
+        lastActivity: now,
+        tags: []
+      }
+    };
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.THREADS], 'readwrite');
+      const store = transaction.objectStore(STORES.THREADS);
+      const request = store.add(thread);
+
+      request.onsuccess = () => {
+        console.log(`✅ IndexedDB: Created thread: ${thread.id} - "${thread.title}"`);
+        resolve(thread);
+      };
+      request.onerror = () => {
+        console.error(`❌ IndexedDB: Failed to create thread: ${thread.title}`, request.error);
+        reject(new Error('Failed to add thread'));
+      };
+    });
+  }
+
+  /**
+   * Get a thread by ID
+   */
+  async getThread(id: string): Promise<Thread | null> {
+    await this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.THREADS], 'readonly');
+      const store = transaction.objectStore(STORES.THREADS);
+      const request = store.get(id);
+
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(new Error('Failed to get thread'));
+    });
+  }
+
+  /**
+   * Get all threads
+   */
+  async getAllThreads(): Promise<Thread[]> {
+    await this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.THREADS], 'readonly');
+      const store = transaction.objectStore(STORES.THREADS);
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const threads = request.result;
+        console.log(`📋 IndexedDB: Retrieved ${threads.length} threads`);
+        resolve(threads);
+      };
+      request.onerror = () => reject(new Error('Failed to get threads'));
+    });
+  }
+
+  /**
+   * Update a thread
+   */
+  async updateThread(id: string, updates: UpdateThreadOptions): Promise<Thread | null> {
+    await this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.THREADS], 'readwrite');
+      const store = transaction.objectStore(STORES.THREADS);
+      const getRequest = store.get(id);
+
+      getRequest.onsuccess = () => {
+        const thread = getRequest.result;
+        if (thread) {
+          const updatedThread = {
+            ...thread,
+            ...updates,
+            updatedAt: Date.now()
+          };
+          
+          const putRequest = store.put(updatedThread);
+          putRequest.onsuccess = () => {
+            console.log(`✅ IndexedDB: Updated thread: ${id}`);
+            resolve(updatedThread);
+          };
+          putRequest.onerror = () => reject(new Error('Failed to update thread'));
+        } else {
+          resolve(null);
+        }
+      };
+
+      getRequest.onerror = () => reject(new Error('Failed to get thread for update'));
+    });
+  }
+
+  /**
+   * Delete a thread and all its children
+   */
+  async deleteThread(id: string): Promise<boolean> {
+    await this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.THREADS], 'readwrite');
+      const store = transaction.objectStore(STORES.THREADS);
+      
+      // First get the thread to check for children
+      const getRequest = store.get(id);
+      
+      getRequest.onsuccess = () => {
+        const thread = getRequest.result;
+        if (thread) {
+          // TODO: Recursively delete child threads
+          const deleteRequest = store.delete(id);
+          deleteRequest.onsuccess = () => {
+            console.log(`✅ IndexedDB: Deleted thread: ${id}`);
+            resolve(true);
+          };
+          deleteRequest.onerror = () => reject(new Error('Failed to delete thread'));
+        } else {
+          resolve(false);
+        }
+      };
+
+      getRequest.onerror = () => reject(new Error('Failed to get thread for deletion'));
+    });
+  }
+
+  /**
+   * Get thread hierarchy
+   */
+  async getThreadHierarchy(): Promise<ThreadHierarchy> {
+    await this.ensureInitialized();
+
+    const threads = await this.getAllThreads();
+    const threadMap = new Map<string, Thread>();
+    const messageToThreadMap = new Map<string, string>();
+    const rootThreads: Thread[] = [];
+
+    // Build thread map and identify root threads
+    for (const thread of threads) {
+      threadMap.set(thread.id, thread);
+      
+      // Add message mappings
+      for (const messageId of thread.messageIds) {
+        messageToThreadMap.set(messageId, thread.id);
+      }
+      
+      // Identify root threads (no parent)
+      if (!thread.parentId) {
+        rootThreads.push(thread);
+      }
+    }
+
+    // Sort root threads by creation date
+    rootThreads.sort((a, b) => a.createdAt - b.createdAt);
+
+    return {
+      rootThreads,
+      threadMap,
+      messageToThreadMap
+    };
+  }
+
+  /**
+   * Move a message to a thread
+   */
+  async moveMessageToThread(messageId: string, threadId: string): Promise<void> {
+    await this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.THREADS, STORES.MESSAGES, STORES.AUDIO_MESSAGES], 'readwrite');
+      const threadStore = transaction.objectStore(STORES.THREADS);
+      
+      const getRequest = threadStore.get(threadId);
+      
+      getRequest.onsuccess = () => {
+        const thread = getRequest.result;
+        if (thread) {
+          // Add message to thread if not already present
+          if (!thread.messageIds.includes(messageId)) {
+            thread.messageIds.push(messageId);
+            thread.metadata.messageCount = thread.messageIds.length;
+            thread.metadata.lastActivity = Date.now();
+            thread.updatedAt = Date.now();
+            
+            const putRequest = threadStore.put(thread);
+            putRequest.onsuccess = () => {
+              console.log(`✅ IndexedDB: Moved message ${messageId} to thread ${threadId}`);
+              resolve();
+            };
+            putRequest.onerror = () => reject(new Error('Failed to update thread with message'));
+          } else {
+            resolve(); // Message already in thread
+          }
+        } else {
+          reject(new Error('Thread not found'));
+        }
+      };
+
+      getRequest.onerror = () => reject(new Error('Failed to get thread'));
+    });
+  }
+
+  /**
+   * Add a child thread to a parent
+   */
+  async addChildThread(parentId: string, childThread: Thread): Promise<void> {
+    await this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.THREADS], 'readwrite');
+      const store = transaction.objectStore(STORES.THREADS);
+      
+      const getRequest = store.get(parentId);
+      
+      getRequest.onsuccess = () => {
+        const parent = getRequest.result;
+        if (parent) {
+          // Add child ID to parent
+          if (!parent.childIds.includes(childThread.id)) {
+            parent.childIds.push(childThread.id);
+            parent.updatedAt = Date.now();
+            
+            const putRequest = store.put(parent);
+            putRequest.onsuccess = () => {
+              console.log(`✅ IndexedDB: Added child thread ${childThread.id} to parent ${parentId}`);
+              resolve();
+            };
+            putRequest.onerror = () => reject(new Error('Failed to update parent thread'));
+          } else {
+            resolve(); // Child already exists
+          }
+        } else {
+          reject(new Error('Parent thread not found'));
+        }
+      };
+
+      getRequest.onerror = () => reject(new Error('Failed to get parent thread'));
     });
   }
 

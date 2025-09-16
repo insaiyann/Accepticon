@@ -1,36 +1,118 @@
 import React, { useState } from 'react';
-import MessageComponent from '../common/MessageComponent';
 import { Icon } from '../common/Icon';
-import { useMessages, useAudioRecorder } from '../../hooks/useMessages';
+import { ThreadTree } from '../ThreadTree/ThreadTree';
+import { ChatOverlay } from '../ChatOverlay/ChatOverlay';
+import { useMessages } from '../../hooks/useMessages';
+import { useThreads } from '../../hooks/useThreads';
 import { useProcessingPipelineContext } from '../../hooks/useProcessingPipelineContext';
+import type { Thread, ThreadMessage } from '../../types/Thread';
 import type { AudioMessage } from '../../types/Message';
 
-const formatDuration = (duration: number): string => {
-  const seconds = Math.floor(duration / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-};
+// Interface for audio blob with duration
+interface AudioBlobWithDuration extends Blob {
+  estimatedDuration?: number;
+}
 
 export const InputPanel: React.FC = () => {
-  const [textInput, setTextInput] = useState('');
+  const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
+  const [isChatOverlayOpen, setIsChatOverlayOpen] = useState(false);
+  const [threadMessages, setThreadMessages] = useState<ThreadMessage[]>([]);
   
   const { 
     messages, 
-    loading: messagesLoading, 
     error: messagesError,
-    addTextMessage, 
-    addAudioMessage, 
-    deleteMessage 
+    addTextMessage,
+    addAudioMessage
   } = useMessages();
-  
+
   const {
-    recordingState,
-    isSupported: audioSupported,
-    startRecording,
-    stopRecording,
-    cancelRecording
-  } = useAudioRecorder();
+    threads,
+    loading: threadsLoading,
+    error: threadsError,
+    createThread,
+    deleteThread,
+    updateThread,
+    toggleCollapsed
+  } = useThreads();
+
+  // Thread interaction handlers
+  const handleThreadClick = async (thread: Thread) => {
+    setSelectedThread(thread);
+    // Load thread messages (for now we'll use empty array, can be extended later)
+    setThreadMessages([]);
+    setIsChatOverlayOpen(true);
+  };
+
+  const handleCreateThread = async (parentId?: string) => {
+    try {
+      const title = `New Thread ${new Date().toLocaleString()}`;
+      await createThread({ title, parentId });
+    } catch (error) {
+      console.error('Failed to create thread:', error);
+    }
+  };
+
+  const handleRenameThread = async (threadId: string, newTitle: string) => {
+    try {
+      await updateThread(threadId, { title: newTitle });
+    } catch (error) {
+      console.error('Failed to rename thread:', error);
+    }
+  };
+
+  const handleSendMessage = async (content: string, type: 'text' | 'audio' | 'image', data?: File | Blob) => {
+    if (!selectedThread) return;
+    
+    try {
+      console.log('📤 InputPanel: Sending message:', { content, type, hasData: !!data });
+      
+      if (type === 'text') {
+        await addTextMessage(content);
+        console.log('✅ InputPanel: Text message saved to IndexedDB');
+      } else if (type === 'audio' && data instanceof Blob) {
+        // Get duration from the audio blob's estimatedDuration property
+        const audioBlobWithDuration = data as AudioBlobWithDuration;
+        const duration = audioBlobWithDuration.estimatedDuration ? 
+          Math.round(audioBlobWithDuration.estimatedDuration * 1000) : // Convert seconds to milliseconds
+          5000; // Default fallback duration
+        
+        console.log('🎤 InputPanel: Audio duration extracted:', {
+          estimatedDuration: audioBlobWithDuration.estimatedDuration,
+          durationMs: duration,
+          blobSize: data.size
+        });
+        
+        await addAudioMessage(data, duration);
+        console.log('✅ InputPanel: Audio message saved to IndexedDB');
+      } else {
+        console.warn('⚠️ InputPanel: Unsupported message type or missing data:', { type, hasData: !!data });
+        return;
+      }
+      
+      // Create a temporary thread message for UI display
+      const newMessage: ThreadMessage = {
+        id: Date.now().toString(),
+        threadId: selectedThread.id,
+        orderInThread: threadMessages.length,
+        sender: 'user',
+        type,
+        content,
+        timestamp: Date.now(),
+        processed: false,
+        data,
+      };
+      
+      setThreadMessages(prev => [...prev, newMessage]);
+      console.log('✅ InputPanel: Message added to thread UI');
+    } catch (error) {
+      console.error('❌ InputPanel: Failed to send message:', error);
+    }
+  };
+
+  const handleCloseChatOverlay = () => {
+    setIsChatOverlayOpen(false);
+    setSelectedThread(null);
+  };
 
   const {
     isProcessing: pipelineProcessing,
@@ -40,53 +122,6 @@ export const InputPanel: React.FC = () => {
     generateDiagram,
     clearError
   } = useProcessingPipelineContext();
-
-  const handleSendText = async () => {
-    if (!textInput.trim()) return;
-    
-    try {
-      await addTextMessage(textInput.trim());
-      setTextInput('');
-    } catch (error) {
-      console.error('Failed to send text message:', error);
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendText();
-    }
-  };
-
-  const handleStartRecording = async () => {
-    if (!audioSupported) {
-      alert('Audio recording is not supported in this browser');
-      return;
-    }
-
-    try {
-      await startRecording();
-    } catch (error) {
-      console.error('Failed to start recording:', error);
-      alert('Failed to start recording. Please check your microphone permissions.');
-    }
-  };
-
-  const handleStopRecording = async () => {
-    try {
-      const audioBlob = await stopRecording();
-      if (audioBlob) {
-        await addAudioMessage(audioBlob, recordingState.duration);
-      }
-    } catch (error) {
-      console.error('Failed to stop recording:', error);
-    }
-  };
-
-  const handleCancelRecording = () => {
-    cancelRecording();
-  };
 
   const handleGenerateDiagram = async () => {
     if (messages.length === 0) {
@@ -131,35 +166,13 @@ export const InputPanel: React.FC = () => {
   return (
     <div className="input-panel">
       <div className="input-panel-header">
-        <h2>Input Messages</h2>
-        <p>Add text or voice messages</p>
+        <h2>Thread Messages</h2>
+        <p>Organize your conversations in threads</p>
       </div>
       
       <div className="input-panel-content">
-        {/* Recording indicator */}
-        {recordingState.isRecording && (
-          <div className="recording-indicator">
-            <div className="recording-dot"></div>
-            <span className="recording-time">
-              Recording: {formatDuration(recordingState.duration)}
-            </span>
-            <button 
-              className="btn btn-secondary" 
-              onClick={handleStopRecording}
-            >
-              Stop
-            </button>
-            <button 
-              className="btn btn-secondary" 
-              onClick={handleCancelRecording}
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-
         {/* Error display */}
-        {(messagesError || recordingState.error || pipelineError) && (
+        {(messagesError || threadsError || pipelineError) && (
           <div style={{ 
             padding: '0.5rem 1rem', 
             backgroundColor: '#f8d7da', 
@@ -170,7 +183,7 @@ export const InputPanel: React.FC = () => {
             justifyContent: 'space-between',
             alignItems: 'center'
           }}>
-            <span>{messagesError || recordingState.error || pipelineError}</span>
+            <span>{messagesError || threadsError || pipelineError}</span>
             {pipelineError && (
               <button 
                 onClick={clearError}
@@ -212,62 +225,23 @@ export const InputPanel: React.FC = () => {
           </div>
         )}
 
-        {/* Messages container */}
-        <div className="messages-container">
-          {messagesLoading ? (
-            <div className="loading">Loading messages...</div>
-          ) : hasMessages ? (
-            messages.map(message => (
-              <MessageComponent
-                key={message.id}
-                message={message}
-                onDelete={deleteMessage}
-              />
-            ))
+        {/* Thread Tree */}
+        <div className="threads-container">
+          {threadsLoading ? (
+            <div className="loading">Loading threads...</div>
+          ) : threadsError ? (
+            <div className="error">Error loading threads: {threadsError}</div>
           ) : (
-            <div className="messages-empty">
-              <div className="messages-empty-icon">
-                <Icon name="text" size={32} className="icon" />
-              </div>
-              <p>No messages yet</p>
-              <p style={{ fontSize: '0.9rem' }}>
-                Start by typing a message or recording audio
-              </p>
-            </div>
-          )}
-        </div>
-        
-        {/* Input controls */}
-        <div className="input-area">
-          <input 
-            type="text" 
-            placeholder="Type your message here..."
-            value={textInput}
-            onChange={(e) => setTextInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            disabled={recordingState.isRecording}
-          />
-          <button 
-            className="btn btn-primary"
-            onClick={handleSendText}
-            disabled={!textInput.trim() || recordingState.isRecording}
-          >
-            <Icon name="add" size={16} className="icon" />
-            Send
-          </button>
-          <button 
-            className="btn btn-secondary btn-icon"
-            onClick={recordingState.isRecording ? handleStopRecording : handleStartRecording}
-            disabled={!audioSupported}
-            title={audioSupported ? 'Record audio message' : 'Audio recording not supported'}
-          >
-            <Icon 
-              name={recordingState.isRecording ? 'stop' : 'microphone'} 
-              size={16} 
-              className="icon" 
+            <ThreadTree
+              threads={threads}
+              onThreadClick={handleThreadClick}
+              onCreateThread={handleCreateThread}
+              onDeleteThread={deleteThread}
+              onToggleCollapse={toggleCollapsed}
+              onRenameThread={handleRenameThread}
+              selectedThreadId={selectedThread?.id}
             />
-            <span>{recordingState.isRecording ? 'Stop' : 'Record'}</span>
-          </button>
+          )}
         </div>
         
         {/* Generate diagram section */}
@@ -290,6 +264,16 @@ export const InputPanel: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Chat Overlay */}
+      <ChatOverlay
+        isOpen={isChatOverlayOpen}
+        onClose={handleCloseChatOverlay}
+        thread={selectedThread}
+        messages={messages}
+        onSendMessage={handleSendMessage}
+        isProcessing={pipelineProcessing}
+      />
     </div>
   );
 };

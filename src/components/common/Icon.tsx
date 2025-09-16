@@ -25,7 +25,14 @@ export type IconName =
   | 'error'
   | 'success'
   | 'file-image'
-  | 'file-code';
+  | 'file-code'
+  | 'chevron-right'
+  | 'chevron-down'
+  | 'message-circle'
+  | 'x'
+  | 'mic'
+  | 'image'
+  | 'send';
 
 interface IconProps {
   name: IconName;
@@ -59,7 +66,14 @@ const iconPaths: Record<IconName, string> = {
   error: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zM15 9l-6 6M9 9l6 6',
   success: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zM9 12l2 2 4-4',
   'file-image': 'M12 3v12m0 0l-4-4m4 4l4-4M4 17h16v4H4z',
-  'file-code': 'M12 3v12m0 0l-4-4m4 4l4-4M4 17h16v4H4z'
+  'file-code': 'M12 3v12m0 0l-4-4m4 4l4-4M4 17h16v4H4z',
+  'chevron-right': 'M9 18l6-6-6-6',
+  'chevron-down': 'M6 9l6 6 6-6',
+  'message-circle': 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z',
+  x: 'M18 6L6 18M6 6l12 12',
+  mic: 'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2',
+  image: 'M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zM21 15l-5-5L5 21',
+  send: 'M2 21l21-9L2 3v7l15 2-15 2v7z'
 };
 
 export const Icon: React.FC<IconProps> = ({ 

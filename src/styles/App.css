@@ -334,6 +334,22 @@ body {
   overflow: hidden;
 }
 
+/* Thread tree container */
+.threads-container {
+  flex: 1;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.threads-container .loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--nb-text-muted);
+  font-style: italic;
+}
+
 /* Viewer panel styles */
 .viewer-panel {
   background: var(--nb-gradient-surface);

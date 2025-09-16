@@ -1,11 +1,12 @@
 // Database configuration
 export const DB_NAME = 'MermaidPWADB';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2; // Increment version for thread support
 
 // Object store names
 export const STORES = {
   MESSAGES: 'messages',
   AUDIO_MESSAGES: 'audioMessages', 
+  THREADS: 'threads',
   PROCESSING_QUEUE: 'processingQueue',
   DIAGRAM_CACHE: 'diagramCache',
   APP_SETTINGS: 'appSettings'
@@ -44,6 +45,30 @@ export interface DBSchema {
     indexes: {
       timestamp: number;
       processed: boolean;
+    };
+  };
+
+  [STORES.THREADS]: {
+    key: string;
+    value: {
+      id: string;
+      title: string;
+      parentId?: string;
+      childIds: string[];
+      messageIds: string[];
+      collapsed: boolean;
+      createdAt: number;
+      updatedAt: number;
+      metadata: {
+        messageCount: number;
+        lastActivity: number;
+        tags?: string[];
+      };
+    };
+    indexes: {
+      parentId: string;
+      createdAt: number;
+      updatedAt: number;
     };
   };
 
