@@ -282,17 +282,26 @@ class ProcessingPipelineService {
         
         const transcriptionText = transcriptionResult.text;
         
-        // Log the STT results
-        console.log(`📝 Speech-to-Text completed for message: ${audioMessage.id}`);
-        console.log(`📊 Transcription details:`, {
+        // Enhanced STT results logging
+        console.log(`🎯 STT RESULT for ${audioMessage.id}:`, {
           messageId: audioMessage.id,
           originalDuration: `${Math.round(audioMessage.duration / 1000)}s`,
+          audioBlobSize: `${Math.round(audioMessage.audioBlob.size / 1024)}KB`,
+          transcriptionSuccess: transcriptionText.length > 0,
           transcribedText: transcriptionText,
+          transcriptionLength: transcriptionText.length,
           confidence: transcriptionResult.confidence,
           language: transcriptionResult.language || 'en-US',
-          processingTime: `${transcriptionResult.duration}ms`
+          processingTime: `${transcriptionResult.duration}ms`,
+          azureResultReason: transcriptionResult.confidence > 0.5 ? 'RECOGNIZED_SPEECH' : 'NO_SPEECH_DETECTED'
         });
-        console.log(`💬 Transcribed text: "${transcriptionText}"`);
+        
+        // Log transcription result prominently
+        if (transcriptionText.length > 0) {
+          console.log(`✅ STT SUCCESS: "${transcriptionText}"`);
+        } else {
+          console.log(`⚠️ STT NO_SPEECH: Audio processed but no speech detected`);
+        }
         
         // Update message with transcription
         const updatedMessage = { ...audioMessage, transcription: transcriptionText };
@@ -334,6 +343,7 @@ class ProcessingPipelineService {
 
   /**
    * Combine content from all messages into a single text
+   * Only includes text messages and audio messages with actual transcriptions
    */
   private combineMessageContent(messages: Message[]): string {
     const textParts: string[] = [];
@@ -348,14 +358,12 @@ class ProcessingPipelineService {
         textParts.push(message.content);
       } else if (message.type === 'audio') {
         const audioMessage = message as AudioMessage;
-        if (audioMessage.transcription) {
+        if (audioMessage.transcription && audioMessage.transcription.trim().length > 0) {
           console.log(`🎤 Adding transcription: "${audioMessage.transcription}"`);
           textParts.push(audioMessage.transcription);
         } else {
-          // Fallback: use a placeholder or the content field
-          const fallbackContent = audioMessage.content || `[Audio message ${Math.round(audioMessage.duration / 1000)}s - transcription pending]`;
-          console.log(`⚠️ Audio message ${message.id} has no transcription, using fallback: "${fallbackContent}"`);
-          textParts.push(fallbackContent);
+          console.log(`⚠️ Skipping audio message ${message.id} - no valid transcription available`);
+          // NO FALLBACK: We don't include audio messages without transcriptions
         }
       }
     }
@@ -420,17 +428,26 @@ class ProcessingPipelineService {
         const audioMessage = message as AudioMessage;
         const transcriptionResult = await speechService.transcribeAudio(audioMessage.audioBlob!);
         
-        // Log the STT results from queue processor
-        console.log(`📝 Queue STT completed for message: ${messageId}`);
-        console.log(`📊 Queue transcription details:`, {
+        // Enhanced STT results logging for queue processor
+        console.log(`🎯 QUEUE STT RESULT for ${messageId}:`, {
           messageId: messageId,
           originalDuration: `${Math.round(audioMessage.duration / 1000)}s`,
+          audioBlobSize: `${Math.round(audioMessage.audioBlob!.size / 1024)}KB`,
+          transcriptionSuccess: transcriptionResult.text.length > 0,
           transcribedText: transcriptionResult.text,
+          transcriptionLength: transcriptionResult.text.length,
           confidence: transcriptionResult.confidence,
           language: transcriptionResult.language || 'en-US',
-          processingTime: `${transcriptionResult.duration}ms`
+          processingTime: `${transcriptionResult.duration}ms`,
+          azureResultReason: transcriptionResult.confidence > 0.5 ? 'RECOGNIZED_SPEECH' : 'NO_SPEECH_DETECTED'
         });
-        console.log(`💬 Queue transcribed text: "${transcriptionResult.text}"`);
+        
+        // Log queue transcription result prominently
+        if (transcriptionResult.text.length > 0) {
+          console.log(`✅ QUEUE STT SUCCESS: "${transcriptionResult.text}"`);
+        } else {
+          console.log(`⚠️ QUEUE STT NO_SPEECH: Audio processed but no speech detected`);
+        }
         
         await indexedDBService.updateMessage(messageId, { transcription: transcriptionResult.text });
         

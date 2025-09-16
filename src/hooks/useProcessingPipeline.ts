@@ -209,7 +209,7 @@ export const useProcessingPipeline = () => {
       azureOpenAI: {
         apiKey: openaiKey,
         endpoint: openaiEndpoint,
-        apiVersion: '2023-12-01-preview',
+        apiVersion: '2024-04-01-preview',
         deploymentName: openaiDeployment
       },
       processing: {

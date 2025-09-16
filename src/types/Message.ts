@@ -1,7 +1,7 @@
 export interface Message {
   id: string;
-  type: 'text' | 'audio';
-  content: string; // For text messages, this is the text. For audio, this is a reference ID
+  type: 'text' | 'audio' | 'image';
+  content: string; // For text messages, this is the text. For audio, this is a reference ID. For images, this is the description
   timestamp: number;
   processed: boolean;
   duration?: number; // Only for audio messages
@@ -17,6 +17,34 @@ export interface AudioMessage extends Message {
 
 export interface TextMessage extends Message {
   type: 'text';
+}
+
+export interface ImageMessage extends Message {
+  type: 'image';
+  imageBlob?: Blob;
+  imageUrl?: string; // For display purposes
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  description?: string; // User-provided description for AI context
+}
+
+// Update main Message type union
+export type MessageUnion = TextMessage | AudioMessage | ImageMessage;
+
+// Add thread-level message organization
+export interface ThreadMessageCollection {
+  threadId: string;
+  textMessages: TextMessage[];
+  audioMessages: AudioMessage[];
+  imageMessages: ImageMessage[];
+  totalCount: number;
+  transcriptionStatus: {
+    total: number;
+    processed: number;
+    pending: number;
+    failed: number;
+  };
 }
 
 export interface ProcessingQueueItem {

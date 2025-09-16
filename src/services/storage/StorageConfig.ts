@@ -1,11 +1,12 @@
 // Database configuration
 export const DB_NAME = 'MermaidPWADB';
-export const DB_VERSION = 2; // Increment version for thread support
+export const DB_VERSION = 3; // Increment version for image support and enhanced threads
 
 // Object store names
 export const STORES = {
   MESSAGES: 'messages',
-  AUDIO_MESSAGES: 'audioMessages', 
+  AUDIO_MESSAGES: 'audioMessages',
+  IMAGE_MESSAGES: 'imageMessages', // New store for images
   THREADS: 'threads',
   PROCESSING_QUEUE: 'processingQueue',
   DIAGRAM_CACHE: 'diagramCache',
@@ -48,6 +49,26 @@ export interface DBSchema {
     };
   };
 
+  [STORES.IMAGE_MESSAGES]: {
+    key: string;
+    value: {
+      id: string;
+      type: 'image';
+      imageBlob: Blob;
+      fileName: string;
+      fileSize: number;
+      mimeType: string;
+      description?: string;
+      timestamp: number;
+      processed: boolean;
+      metadata?: Record<string, unknown>;
+    };
+    indexes: {
+      timestamp: number;
+      processed: boolean;
+    };
+  };
+
   [STORES.THREADS]: {
     key: string;
     value: {
@@ -56,6 +77,17 @@ export interface DBSchema {
       parentId?: string;
       childIds: string[];
       messageIds: string[];
+      messages: {
+        text: string[];
+        audio: string[];
+        image: string[];
+      };
+      processingStatus: {
+        audioTranscriptionsComplete: boolean;
+        totalAudioMessages: number;
+        transcribedAudioMessages: number;
+        lastProcessedAt?: number;
+      };
       collapsed: boolean;
       createdAt: number;
       updatedAt: number;
@@ -63,6 +95,8 @@ export interface DBSchema {
         messageCount: number;
         lastActivity: number;
         tags?: string[];
+        hasImages: boolean;
+        hasAudio: boolean;
       };
     };
     indexes: {

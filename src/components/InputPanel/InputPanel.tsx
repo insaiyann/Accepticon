@@ -7,18 +7,19 @@ import { useThreads } from '../../hooks/useThreads';
 import { useProcessingPipelineContext } from '../../hooks/useProcessingPipelineContext';
 import { indexedDBService } from '../../services/storage/IndexedDBService';
 import type { Thread } from '../../types/Thread';
-import type { AudioMessage, TextMessage } from '../../types/Message';
+import type { AudioMessage, TextMessage, ImageMessage } from '../../types/Message';
 
 export const InputPanel: React.FC = () => {
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
   const [isChatOverlayOpen, setIsChatOverlayOpen] = useState(false);
-  const [threadMessages, setThreadMessages] = useState<(TextMessage | AudioMessage)[]>([]);
+  const [threadMessages, setThreadMessages] = useState<(TextMessage | AudioMessage | ImageMessage)[]>([]);
   
   const { 
     messages, 
     error: messagesError,
     addTextMessage,
-    addAudioMessage
+    addAudioMessage,
+    addImageMessage
   } = useMessages();
 
   const {
@@ -73,7 +74,13 @@ export const InputPanel: React.FC = () => {
   const handleSendMessage = async (
     content: string,
     type: 'text' | 'audio' | 'image',
-    options?: { data?: File | Blob; duration?: number }
+    options?: { 
+      data?: File | Blob; 
+      duration?: number;
+      fileName?: string;
+      fileSize?: number;
+      mimeType?: string;
+    }
   ) => {
     if (!selectedThread) return;
     
@@ -85,7 +92,7 @@ export const InputPanel: React.FC = () => {
         options 
       });
       
-      let newMessage: TextMessage | AudioMessage;
+      let newMessage: TextMessage | AudioMessage | ImageMessage;
       
       if (type === 'text') {
         newMessage = await addTextMessage(content);
@@ -100,6 +107,19 @@ export const InputPanel: React.FC = () => {
         
         newMessage = await addAudioMessage(options.data, durationInSeconds);
         console.log('✅ InputPanel: Audio message saved to IndexedDB:', newMessage.id);
+      } else if (type === 'image' && options?.data instanceof File) {
+        console.log('🖼️ InputPanel: Image upload received:', {
+          fileName: options.fileName || 'image.png',
+          fileSize: options.fileSize || options.data.size,
+          mimeType: options.mimeType || options.data.type
+        });
+        
+        newMessage = await addImageMessage(
+          options.data,
+          options.fileName || 'image.png',
+          content // description
+        );
+        console.log('✅ InputPanel: Image message saved to IndexedDB:', newMessage.id);
       } else {
         console.warn('⚠️ InputPanel: Unsupported message type or missing data:', { type, options });
         return;

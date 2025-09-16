@@ -3,7 +3,23 @@ export interface Thread {
   title: string;
   parentId?: string; // null for root threads
   childIds: string[];
-  messageIds: string[];
+  messageIds: string[]; // Keep for backward compatibility
+  
+  // New: Organized message collections
+  messages: {
+    text: string[]; // Array of text message IDs
+    audio: string[]; // Array of audio message IDs  
+    image: string[]; // Array of image message IDs
+  };
+  
+  // Enhanced processing status
+  processingStatus: {
+    audioTranscriptionsComplete: boolean;
+    totalAudioMessages: number;
+    transcribedAudioMessages: number;
+    lastProcessedAt?: number;
+  };
+  
   collapsed: boolean;
   createdAt: number;
   updatedAt: number;
@@ -11,6 +27,8 @@ export interface Thread {
     messageCount: number;
     lastActivity: number;
     tags?: string[];
+    hasImages: boolean;
+    hasAudio: boolean;
   };
 }
 

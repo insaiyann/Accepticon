@@ -191,6 +191,33 @@
   font-size: 0.875rem;
 }
 
+.message-audio-transcription {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+  border-left: 3px solid var(--nb-accent-blue, #4a90e2);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.chat-message.user .message-audio-transcription {
+  background: rgba(255, 255, 255, 0.15);
+  border-left-color: rgba(255, 255, 255, 0.4);
+}
+
+.transcription-text {
+  font-style: italic;
+  color: var(--nb-text-subtle, #6c757d);
+  flex: 1;
+}
+
+.chat-message.user .transcription-text {
+  color: rgba(255, 255, 255, 0.9);
+}
+
 .message-audio-header {
   display: flex;
   align-items: center;

@@ -1,20 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { TextMessage, AudioMessage } from '../types/Message';
+import type { TextMessage, AudioMessage, ImageMessage } from '../types/Message';
 import { indexedDBService } from '../services/storage/IndexedDBService';
 import { audioRecorderService, type AudioRecordingState } from '../services/audio/AudioRecorder';
 
 interface UseMessagesResult {
-  messages: (TextMessage | AudioMessage)[];
+  messages: (TextMessage | AudioMessage | ImageMessage)[];
   loading: boolean;
   error: string | null;
   addTextMessage: (content: string) => Promise<TextMessage>;
   addAudioMessage: (audioBlob: Blob, duration: number) => Promise<AudioMessage>;
+  addImageMessage: (imageBlob: Blob, fileName: string, description?: string) => Promise<ImageMessage>;
   deleteMessage: (id: string) => Promise<void>;
   refreshMessages: () => Promise<void>;
 }
 
 export const useMessages = (): UseMessagesResult => {
-  const [messages, setMessages] = useState<(TextMessage | AudioMessage)[]>([]);
+  const [messages, setMessages] = useState<(TextMessage | AudioMessage | ImageMessage)[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,6 +109,52 @@ export const useMessages = (): UseMessagesResult => {
     }
   }, []);
 
+  const addImageMessage = useCallback(async (imageBlob: Blob, fileName: string, description?: string): Promise<ImageMessage> => {
+    try {
+      console.log('🖼️ useMessages: Adding image message...', {
+        imageBlobSize: imageBlob.size,
+        imageBlobType: imageBlob.type,
+        fileName: fileName,
+        hasDescription: !!description
+      });
+      
+      const newMessage = await indexedDBService.addImageMessage({
+        imageBlob,
+        fileName,
+        fileSize: imageBlob.size,
+        mimeType: imageBlob.type,
+        description,
+        timestamp: Date.now(),
+        processed: false,
+        type: 'image',
+        content: description || `Image: ${fileName}`
+      });
+      
+      console.log('✅ useMessages: Image message added to IndexedDB:', {
+        id: newMessage.id,
+        type: newMessage.type,
+        fileName: newMessage.fileName,
+        fileSize: newMessage.fileSize,
+        hasDescription: !!newMessage.description
+      });
+      
+      setMessages(prev => {
+        const updated = [...prev, newMessage].sort((a, b) => a.timestamp - b.timestamp);
+        console.log(`📋 useMessages: Updated messages state (${updated.length} total):`, updated.map(m => ({
+          id: m.id,
+          type: m.type
+        })));
+        return updated;
+      });
+      
+      return newMessage;
+    } catch (err) {
+      console.error('❌ useMessages: Failed to add image message:', err);
+      setError(err instanceof Error ? err.message : 'Failed to add image message');
+      throw err;
+    }
+  }, []);
+
   const deleteMessage = useCallback(async (id: string) => {
     try {
       console.log(`🗑️ useMessages: Attempting to delete message: ${id}`);
@@ -149,6 +196,7 @@ export const useMessages = (): UseMessagesResult => {
     error,
     addTextMessage,
     addAudioMessage,
+    addImageMessage,
     deleteMessage,
     refreshMessages
   };

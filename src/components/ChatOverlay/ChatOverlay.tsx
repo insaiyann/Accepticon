@@ -1,15 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { Thread, ThreadMessage } from '../../types/Thread';
-import type { TextMessage, AudioMessage } from '../../types/Message';
+import type { TextMessage, AudioMessage, ImageMessage } from '../../types/Message';
 import { Icon } from '../common/Icon';
 import './ChatOverlay.css';
 
 interface AudioMessageProps {
   audioData: Blob | undefined;
   duration: number;
+  transcription?: string;
 }
 
-const AudioMessage: React.FC<AudioMessageProps> = ({ audioData, duration }) => {
+const AudioMessage: React.FC<AudioMessageProps> = ({ audioData, duration, transcription }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -86,6 +87,12 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ audioData, duration }) => {
           </div>
         </div>
       </div>
+      {transcription && transcription.trim().length > 0 && (
+        <div className="message-audio-transcription">
+          <Icon name="text" size={14} />
+          <span className="transcription-text">"{transcription}"</span>
+        </div>
+      )}
       <audio ref={audioRef} style={{ display: 'none' }} />
     </div>
   );
@@ -95,11 +102,17 @@ export interface ChatOverlayProps {
   isOpen: boolean;
   onClose: () => void;
   thread: Thread | null;
-  messages: ThreadMessage[] | (TextMessage | AudioMessage)[]; // Accept both types
+  messages: ThreadMessage[] | (TextMessage | AudioMessage | ImageMessage)[]; // Accept all message types
   onSendMessage: (
     content: string,
     type: 'text' | 'audio' | 'image',
-    options?: { data?: File | Blob; duration?: number }
+    options?: { 
+      data?: File | Blob; 
+      duration?: number;
+      fileName?: string;
+      fileSize?: number;
+      mimeType?: string;
+    }
   ) => void;
   isProcessing?: boolean;
 }
@@ -122,7 +135,7 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({
   const audioChunksRef = useRef<Blob[]>([]);
 
   // Helper function to normalize messages for display
-  const normalizeMessage = (message: ThreadMessage | TextMessage | AudioMessage) => {
+  const normalizeMessage = (message: ThreadMessage | TextMessage | AudioMessage | ImageMessage) => {
     if ('sender' in message) {
       // It's a ThreadMessage
       return {
@@ -134,18 +147,26 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({
         data: message.data,
         audioBlob: message.type === 'audio' ? message.data : undefined,
         duration: message.duration,
+        transcription: message.type === 'audio' ? (message as ThreadMessage & { transcription?: string }).transcription : undefined,
+        imageBlob: message.type === 'image' ? message.data : undefined,
+        fileName: message.type === 'image' ? (message as ThreadMessage & { fileName?: string }).fileName : undefined,
       };
     } else {
-      // It's a TextMessage or AudioMessage
+      // It's a TextMessage, AudioMessage, or ImageMessage
       return {
         id: message.id,
         type: message.type,
         content: message.content,
         timestamp: message.timestamp,
         sender: 'user' as const, // Default to user for persisted messages
-        data: message.type === 'audio' ? (message as AudioMessage).audioBlob : undefined,
+        data: message.type === 'audio' ? (message as AudioMessage).audioBlob 
+              : message.type === 'image' ? (message as ImageMessage).imageBlob 
+              : undefined,
         audioBlob: message.type === 'audio' ? (message as AudioMessage).audioBlob : undefined,
         duration: message.type === 'audio' ? (message as AudioMessage).duration : undefined,
+        transcription: message.type === 'audio' ? (message as AudioMessage).transcription : undefined,
+        imageBlob: message.type === 'image' ? (message as ImageMessage).imageBlob : undefined,
+        fileName: message.type === 'image' ? (message as ImageMessage).fileName : undefined,
       };
     }
   };
@@ -362,6 +383,7 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({
                       <AudioMessage
                         audioData={normalizedMessage.audioBlob}
                         duration={normalizedMessage.duration || 0}
+                        transcription={normalizedMessage.transcription}
                       />
                     )}
                     {normalizedMessage.type === 'image' && (

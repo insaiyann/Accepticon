@@ -1,5 +1,5 @@
 import { DB_NAME, DB_VERSION, STORES } from './StorageConfig';
-import type { Message, AudioMessage, TextMessage, ProcessingQueueItem, DiagramCache, StorageQuota } from '../../types/Message';
+import type { Message, AudioMessage, TextMessage, ImageMessage, ProcessingQueueItem, DiagramCache, StorageQuota } from '../../types/Message';
 import type { Thread, ThreadHierarchy, CreateThreadOptions, UpdateThreadOptions } from '../../types/Thread';
 
 class IndexedDBService {
@@ -50,6 +50,13 @@ class IndexedDBService {
       const audioStore = db.createObjectStore(STORES.AUDIO_MESSAGES, { keyPath: 'id' });
       audioStore.createIndex('timestamp', 'timestamp', { unique: false });
       audioStore.createIndex('processed', 'processed', { unique: false });
+    }
+
+    // Image messages store
+    if (!db.objectStoreNames.contains(STORES.IMAGE_MESSAGES)) {
+      const imageStore = db.createObjectStore(STORES.IMAGE_MESSAGES, { keyPath: 'id' });
+      imageStore.createIndex('timestamp', 'timestamp', { unique: false });
+      imageStore.createIndex('processed', 'processed', { unique: false });
     }
 
     // Threads store
@@ -134,19 +141,61 @@ class IndexedDBService {
   }
 
   /**
-   * Get all messages (text and audio) sorted by timestamp
+   * Add an image message
    */
-  async getAllMessages(): Promise<(TextMessage | AudioMessage)[]> {
+  async addImageMessage(message: Omit<ImageMessage, 'id'>): Promise<ImageMessage> {
+    await this.ensureInitialized();
+    
+    const imageMessage: ImageMessage = {
+      ...message,
+      id: `image_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: 'image'
+    };
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.IMAGE_MESSAGES], 'readwrite');
+      const store = transaction.objectStore(STORES.IMAGE_MESSAGES);
+      const request = store.add(imageMessage);
+
+      request.onsuccess = () => resolve(imageMessage);
+      request.onerror = () => reject(new Error('Failed to add image message'));
+    });
+  }
+
+  /**
+   * Get image blob by message ID
+   */
+  async getImageBlob(messageId: string): Promise<Blob | null> {
+    await this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.IMAGE_MESSAGES], 'readonly');
+      const store = transaction.objectStore(STORES.IMAGE_MESSAGES);
+      const request = store.get(messageId);
+
+      request.onsuccess = () => {
+        const result = request.result;
+        resolve(result ? result.imageBlob : null);
+      };
+      request.onerror = () => reject(new Error('Failed to get image blob'));
+    });
+  }
+
+  /**
+   * Get all messages (text, audio, and image) sorted by timestamp
+   */
+  async getAllMessages(): Promise<(TextMessage | AudioMessage | ImageMessage)[]> {
     await this.ensureInitialized();
 
     console.log('🔍 IndexedDB: Getting all messages...');
 
-    const [textMessages, audioMessages] = await Promise.all([
+    const [textMessages, audioMessages, imageMessages] = await Promise.all([
       this.getTextMessages(),
-      this.getAudioMessages()
+      this.getAudioMessages(),
+      this.getImageMessages()
     ]);
 
-    console.log(`📊 IndexedDB: Retrieved ${textMessages.length} text messages and ${audioMessages.length} audio messages`);
+    console.log(`📊 IndexedDB: Retrieved ${textMessages.length} text messages, ${audioMessages.length} audio messages, and ${imageMessages.length} image messages`);
     console.log('📝 Text messages IDs:', textMessages.map(m => m.id));
     console.log('🎤 Audio messages details:', audioMessages.map(m => ({
       id: m.id,
@@ -155,9 +204,16 @@ class IndexedDBService {
       audioBlobSize: m.audioBlob?.size || 0,
       hasTranscription: !!m.transcription
     })));
+    console.log('🖼️ Image messages details:', imageMessages.map(m => ({
+      id: m.id,
+      type: m.type,
+      fileName: m.fileName,
+      fileSize: m.fileSize,
+      hasDescription: !!m.description
+    })));
 
     // Combine and sort by timestamp
-    const allMessages = [...textMessages, ...audioMessages];
+    const allMessages = [...textMessages, ...audioMessages, ...imageMessages];
     const sortedMessages = allMessages.sort((a, b) => a.timestamp - b.timestamp);
     
     console.log(`📋 IndexedDB: Returning ${sortedMessages.length} total messages:`, sortedMessages.map(m => ({
@@ -245,11 +301,43 @@ class IndexedDBService {
 
     if (audioMessage) {
       console.log(`✅ IndexedDB: Found message ${id} in audio store`);
-    } else {
-      console.warn(`⚠️ IndexedDB: Message ${id} not found in either store`);
+      return audioMessage;
     }
 
-    return audioMessage;
+    // If not found in audio messages, try image messages store
+    const imageMessage = await new Promise<Message | null>((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.IMAGE_MESSAGES], 'readonly');
+      const store = transaction.objectStore(STORES.IMAGE_MESSAGES);
+      const request = store.get(id);
+
+      request.onsuccess = () => {
+        const result = request.result || null;
+        console.log(`🖼️ IndexedDB: Image store search for ${id}:`, result ? 'Found' : 'Not found');
+        if (result) {
+          console.log(`🖼️ IndexedDB: Image message details:`, {
+            id: result.id,
+            type: result.type,
+            fileName: result.fileName,
+            fileSize: result.fileSize,
+            hasDescription: !!result.description
+          });
+        }
+        resolve(result);
+      };
+
+      request.onerror = () => {
+        console.error(`❌ IndexedDB: Failed to get image message ${id}:`, request.error);
+        reject(new Error('Failed to get image message'));
+      };
+    });
+
+    if (imageMessage) {
+      console.log(`✅ IndexedDB: Found message ${id} in image store`);
+    } else {
+      console.warn(`⚠️ IndexedDB: Message ${id} not found in any store`);
+    }
+
+    return imageMessage;
   }
 
   /**
@@ -396,6 +484,22 @@ class IndexedDBService {
 
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(new Error('Failed to get audio messages'));
+    });
+  }
+
+  /**
+   * Get all image messages
+   */
+  async getImageMessages(): Promise<ImageMessage[]> {
+    await this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.IMAGE_MESSAGES], 'readonly');
+      const store = transaction.objectStore(STORES.IMAGE_MESSAGES);
+      const request = store.getAll();
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(new Error('Failed to get image messages'));
     });
   }
 
@@ -684,13 +788,31 @@ class IndexedDBService {
       parentId: options.parentId,
       childIds: [],
       messageIds: [],
+      
+      // New: Organized message collections
+      messages: {
+        text: [],
+        audio: [],
+        image: []
+      },
+      
+      // Enhanced processing status
+      processingStatus: {
+        audioTranscriptionsComplete: true,
+        totalAudioMessages: 0,
+        transcribedAudioMessages: 0,
+        lastProcessedAt: undefined
+      },
+      
       collapsed: false,
       createdAt: now,
       updatedAt: now,
       metadata: {
         messageCount: 0,
         lastActivity: now,
-        tags: []
+        tags: [],
+        hasImages: false,
+        hasAudio: false
       }
     };
 
@@ -855,8 +977,14 @@ class IndexedDBService {
   async moveMessageToThread(messageId: string, threadId: string): Promise<void> {
     await this.ensureInitialized();
 
+    // First, get the message to determine its type
+    const message = await this.getMessage(messageId);
+    if (!message) {
+      throw new Error(`Message ${messageId} not found`);
+    }
+
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORES.THREADS, STORES.MESSAGES, STORES.AUDIO_MESSAGES], 'readwrite');
+      const transaction = this.db!.transaction([STORES.THREADS], 'readwrite');
       const threadStore = transaction.objectStore(STORES.THREADS);
       
       const getRequest = threadStore.get(threadId);
@@ -864,11 +992,55 @@ class IndexedDBService {
       getRequest.onsuccess = () => {
         const thread = getRequest.result;
         if (thread) {
-          // Add message to thread if not already present
+          // Ensure thread has the new message structure
+          if (!thread.messages) {
+            thread.messages = {
+              text: [],
+              audio: [],
+              image: []
+            };
+          }
+
+          // Ensure thread has processing status
+          if (!thread.processingStatus) {
+            thread.processingStatus = {
+              audioTranscriptionsComplete: false,
+              totalAudioMessages: 0,
+              transcribedAudioMessages: 0
+            };
+          }
+
+          // Add message to legacy messageIds if not already present
           if (!thread.messageIds.includes(messageId)) {
             thread.messageIds.push(messageId);
+          }
+
+          // Add message to appropriate type array
+          let messageAdded = false;
+          if (message.type === 'text' && !thread.messages.text.includes(messageId)) {
+            thread.messages.text.push(messageId);
+            messageAdded = true;
+          } else if (message.type === 'audio' && !thread.messages.audio.includes(messageId)) {
+            thread.messages.audio.push(messageId);
+            thread.processingStatus.totalAudioMessages = thread.messages.audio.length;
+            // Check if this audio message has transcription
+            if (message.transcription) {
+              thread.processingStatus.transcribedAudioMessages += 1;
+            }
+            thread.processingStatus.audioTranscriptionsComplete = 
+              thread.processingStatus.transcribedAudioMessages >= thread.processingStatus.totalAudioMessages;
+            messageAdded = true;
+          } else if (message.type === 'image' && !thread.messages.image.includes(messageId)) {
+            thread.messages.image.push(messageId);
+            messageAdded = true;
+          }
+
+          if (messageAdded) {
+            // Update metadata
             thread.metadata.messageCount = thread.messageIds.length;
             thread.metadata.lastActivity = Date.now();
+            thread.metadata.hasImages = thread.messages.image.length > 0;
+            thread.metadata.hasAudio = thread.messages.audio.length > 0;
             thread.updatedAt = Date.now();
             
             const putRequest = threadStore.put(thread);

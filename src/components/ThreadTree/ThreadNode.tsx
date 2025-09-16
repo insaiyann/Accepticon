@@ -146,11 +146,35 @@ export const ThreadNode: React.FC<ThreadNodeProps> = ({
               )}
             </div>
             <div className="thread-metadata">
-              {thread.metadata.messageCount > 0 && (
-                <span className="message-count-badge">
-                  {thread.metadata.messageCount}
-                </span>
-              )}
+              {/* Message Type Indicators */}
+              <div className="message-type-indicators">
+                {thread.messages?.text?.length > 0 && (
+                  <span className="message-type-badge text-badge" title={`${thread.messages.text.length} text message${thread.messages.text.length !== 1 ? 's' : ''}`}>
+                    📝 {thread.messages.text.length}
+                  </span>
+                )}
+                {thread.messages?.audio?.length > 0 && (
+                  <span className="message-type-badge audio-badge" title={`${thread.messages.audio.length} audio message${thread.messages.audio.length !== 1 ? 's' : ''}`}>
+                    🎤 {thread.messages.audio.length}
+                    {thread.processingStatus?.audioTranscriptionsComplete ? 
+                      <span className="processing-indicator complete">✓</span> : 
+                      <span className="processing-indicator pending">⋯</span>
+                    }
+                  </span>
+                )}
+                {thread.messages?.image?.length > 0 && (
+                  <span className="message-type-badge image-badge" title={`${thread.messages.image.length} image${thread.messages.image.length !== 1 ? 's' : ''}`}>
+                    🖼️ {thread.messages.image.length}
+                  </span>
+                )}
+                {/* Fallback for legacy threads without organized messages */}
+                {(!thread.messages || (!thread.messages.text?.length && !thread.messages.audio?.length && !thread.messages.image?.length)) && 
+                 thread.metadata.messageCount > 0 && (
+                  <span className="message-count-badge" title={`${thread.metadata.messageCount} message${thread.metadata.messageCount !== 1 ? 's' : ''}`}>
+                    {thread.metadata.messageCount}
+                  </span>
+                )}
+              </div>
               <span className="last-activity">
                 {formatTimeAgo(thread.metadata.lastActivity)}
               </span>
