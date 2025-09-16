@@ -400,6 +400,53 @@ class IndexedDBService {
   }
 
   /**
+   * Get messages for a specific thread
+   */
+  async getMessagesForThread(threadId: string): Promise<(TextMessage | AudioMessage)[]> {
+    await this.ensureInitialized();
+
+    console.log(`🔍 IndexedDB: Getting messages for thread: ${threadId}`);
+
+    // First get the thread to get its messageIds
+    const thread = await this.getThread(threadId);
+    if (!thread) {
+      console.warn(`⚠️ IndexedDB: Thread ${threadId} not found`);
+      return [];
+    }
+
+    if (thread.messageIds.length === 0) {
+      console.log(`📋 IndexedDB: Thread ${threadId} has no messages`);
+      return [];
+    }
+
+    console.log(`📋 IndexedDB: Thread ${threadId} has ${thread.messageIds.length} message IDs:`, thread.messageIds);
+
+    // Get all messages for this thread
+    const messages: (TextMessage | AudioMessage)[] = [];
+    
+    for (const messageId of thread.messageIds) {
+      try {
+        const message = await this.getMessage(messageId);
+        if (message) {
+          messages.push(message as TextMessage | AudioMessage);
+        } else {
+          console.warn(`⚠️ IndexedDB: Message ${messageId} not found for thread ${threadId}`);
+        }
+      } catch (error) {
+        console.error(`❌ IndexedDB: Error getting message ${messageId} for thread ${threadId}:`, error);
+      }
+    }
+
+    // Sort by timestamp
+    const sortedMessages = messages.sort((a, b) => a.timestamp - b.timestamp);
+    
+    console.log(`📋 IndexedDB: Returning ${sortedMessages.length} messages for thread ${threadId}:`, 
+      sortedMessages.map(m => ({ id: m.id, type: m.type, timestamp: new Date(m.timestamp).toLocaleString() })));
+
+    return sortedMessages;
+  }
+
+  /**
    * Add item to processing queue
    */
   async addToProcessingQueue(item: Omit<ProcessingQueueItem, 'id'>): Promise<ProcessingQueueItem> {

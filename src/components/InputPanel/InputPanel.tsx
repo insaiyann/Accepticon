@@ -5,13 +5,14 @@ import { ChatOverlay } from '../ChatOverlay/ChatOverlay';
 import { useMessages } from '../../hooks/useMessages';
 import { useThreads } from '../../hooks/useThreads';
 import { useProcessingPipelineContext } from '../../hooks/useProcessingPipelineContext';
-import type { Thread, ThreadMessage } from '../../types/Thread';
-import type { AudioMessage } from '../../types/Message';
+import { indexedDBService } from '../../services/storage/IndexedDBService';
+import type { Thread } from '../../types/Thread';
+import type { AudioMessage, TextMessage } from '../../types/Message';
 
 export const InputPanel: React.FC = () => {
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
   const [isChatOverlayOpen, setIsChatOverlayOpen] = useState(false);
-  const [threadMessages, setThreadMessages] = useState<ThreadMessage[]>([]);
+  const [threadMessages, setThreadMessages] = useState<(TextMessage | AudioMessage)[]>([]);
   
   const { 
     messages, 
@@ -27,15 +28,29 @@ export const InputPanel: React.FC = () => {
     createThread,
     deleteThread,
     updateThread,
-    toggleCollapsed
+    toggleCollapsed,
+    moveMessageToThread
   } = useThreads();
 
   // Thread interaction handlers
   const handleThreadClick = async (thread: Thread) => {
     setSelectedThread(thread);
-    // Load thread messages (for now we'll use empty array, can be extended later)
-    setThreadMessages([]);
-    setIsChatOverlayOpen(true);
+    
+    try {
+      console.log(`🧵 InputPanel: Loading messages for thread: ${thread.id} - "${thread.title}"`);
+      
+      // Load messages specific to this thread
+      const threadSpecificMessages = await indexedDBService.getMessagesForThread(thread.id);
+      
+      console.log(`📋 InputPanel: Loaded ${threadSpecificMessages.length} messages for thread ${thread.id}`);
+      
+      setThreadMessages(threadSpecificMessages);
+      setIsChatOverlayOpen(true);
+    } catch (error) {
+      console.error('❌ InputPanel: Failed to load thread messages:', error);
+      setThreadMessages([]);
+      setIsChatOverlayOpen(true);
+    }
   };
 
   const handleCreateThread = async (parentId?: string) => {
@@ -63,11 +78,18 @@ export const InputPanel: React.FC = () => {
     if (!selectedThread) return;
     
     try {
-      console.log('📤 InputPanel: Sending message:', { content, type, options });
+      console.log('📤 InputPanel: Sending message to thread:', { 
+        threadId: selectedThread.id, 
+        content, 
+        type, 
+        options 
+      });
+      
+      let newMessage: TextMessage | AudioMessage;
       
       if (type === 'text') {
-        await addTextMessage(content);
-        console.log('✅ InputPanel: Text message saved to IndexedDB');
+        newMessage = await addTextMessage(content);
+        console.log('✅ InputPanel: Text message saved to IndexedDB:', newMessage.id);
       } else if (type === 'audio' && options?.data instanceof Blob) {
         const durationInSeconds = options.duration || 0;
         
@@ -76,29 +98,21 @@ export const InputPanel: React.FC = () => {
           blobSize: options.data.size
         });
         
-        await addAudioMessage(options.data, durationInSeconds);
-        console.log('✅ InputPanel: Audio message saved to IndexedDB');
+        newMessage = await addAudioMessage(options.data, durationInSeconds);
+        console.log('✅ InputPanel: Audio message saved to IndexedDB:', newMessage.id);
       } else {
         console.warn('⚠️ InputPanel: Unsupported message type or missing data:', { type, options });
         return;
       }
       
-      // Create a temporary thread message for UI display
-      const newMessage: ThreadMessage = {
-        id: Date.now().toString(),
-        threadId: selectedThread.id,
-        orderInThread: threadMessages.length,
-        sender: 'user',
-        type,
-        content,
-        timestamp: Date.now(),
-        processed: false,
-        data: options?.data,
-        duration: options?.duration,
-      };
+      // Associate the message with the selected thread
+      console.log(`🔗 InputPanel: Associating message ${newMessage.id} with thread ${selectedThread.id}`);
+      await moveMessageToThread(newMessage.id, selectedThread.id);
       
-      setThreadMessages(prev => [...prev, newMessage]);
-      console.log('✅ InputPanel: Message added to thread UI');
+      // Update the local thread messages state
+      setThreadMessages(prev => [...prev, newMessage].sort((a, b) => a.timestamp - b.timestamp));
+      
+      console.log('✅ InputPanel: Message added to thread and UI updated');
     } catch (error) {
       console.error('❌ InputPanel: Failed to send message:', error);
     }
@@ -265,7 +279,7 @@ export const InputPanel: React.FC = () => {
         isOpen={isChatOverlayOpen}
         onClose={handleCloseChatOverlay}
         thread={selectedThread}
-        messages={messages}
+        messages={threadMessages}
         onSendMessage={handleSendMessage}
         isProcessing={pipelineProcessing}
       />

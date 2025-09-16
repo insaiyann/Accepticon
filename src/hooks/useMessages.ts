@@ -7,8 +7,8 @@ interface UseMessagesResult {
   messages: (TextMessage | AudioMessage)[];
   loading: boolean;
   error: string | null;
-  addTextMessage: (content: string) => Promise<void>;
-  addAudioMessage: (audioBlob: Blob, duration: number) => Promise<void>;
+  addTextMessage: (content: string) => Promise<TextMessage>;
+  addAudioMessage: (audioBlob: Blob, duration: number) => Promise<AudioMessage>;
   deleteMessage: (id: string) => Promise<void>;
   refreshMessages: () => Promise<void>;
 }
@@ -50,7 +50,7 @@ export const useMessages = (): UseMessagesResult => {
     initializeAndLoadMessages();
   }, []);
 
-  const addTextMessage = useCallback(async (content: string) => {
+  const addTextMessage = useCallback(async (content: string): Promise<TextMessage> => {
     try {
       const newMessage = await indexedDBService.addTextMessage({
         content,
@@ -60,13 +60,14 @@ export const useMessages = (): UseMessagesResult => {
       });
       
       setMessages(prev => [...prev, newMessage].sort((a, b) => a.timestamp - b.timestamp));
+      return newMessage;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add text message');
       throw err;
     }
   }, []);
 
-  const addAudioMessage = useCallback(async (audioBlob: Blob, duration: number) => {
+  const addAudioMessage = useCallback(async (audioBlob: Blob, duration: number): Promise<AudioMessage> => {
     try {
       console.log('🎤 useMessages: Adding audio message...', {
         audioBlobSize: audioBlob.size,
@@ -98,6 +99,8 @@ export const useMessages = (): UseMessagesResult => {
         })));
         return updated;
       });
+      
+      return newMessage;
     } catch (err) {
       console.error('❌ useMessages: Failed to add audio message:', err);
       setError(err instanceof Error ? err.message : 'Failed to add audio message');
