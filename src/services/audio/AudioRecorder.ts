@@ -8,6 +8,8 @@ export interface AudioRecordingResult {
   blob: Blob;
   duration: number;
   size: number;
+  format: string;              // MIME type used for recording
+  needsConversion: boolean;    // Whether backend STT likely needs conversion to WAV
 }
 
 export interface AudioRecordingState {
@@ -39,20 +41,22 @@ class AudioRecorderService {
   }
 
   /**
-   * Get supported MIME types for audio recording, prioritized for speech recognition
+   * Get supported MIME types for audio recording, prioritized for Azure Speech Service compatibility
    */
   static getSupportedMimeTypes(): string[] {
     const types = [
-      'audio/wav',                    // Best for speech recognition
-      'audio/webm;codecs=opus',       // Good compression with speech quality
+      // Azure Speech Service natively supported formats (highest priority)
+      'audio/wav',                    // Best compatibility, no conversion needed
+      'audio/webm;codecs=opus',       // Natively supported by Azure, good compression
+      'audio/webm',                   // Fallback WebM
+      'audio/ogg;codecs=opus',        // Natively supported by Azure
+      'audio/ogg',                    // Fallback OGG
+      'audio/mp4;codecs=mp4a.40.2',   // AAC in MP4, supported by Azure
+      'audio/mp4',                    // Fallback MP4
+      'audio/mpeg',                   // MP3 format, supported by Azure
+      // Less preferred formats (may need conversion)
       'audio/webm;codecs=pcm',        // Uncompressed WebM
-      'audio/webm',                   // Default WebM
-      'audio/ogg;codecs=opus',        // Alternative with Opus codec
       'audio/ogg;codecs=speex',       // Speech-optimized codec
-      'audio/ogg',                    // Default Ogg
-      'audio/mp4;codecs=mp4a.40.2',   // AAC in MP4
-      'audio/mp4',                    // Default MP4
-      'audio/mpeg',                   // MP3 format
       'audio/3gpp',                   // 3GPP for mobile compatibility
       'audio/3gpp2'                   // 3GPP2 variant
     ];
@@ -146,25 +150,41 @@ class AudioRecorderService {
         }
       });
 
-      // Determine best MIME type, preferring formats that work well with Azure Speech
+      // Determine best MIME type, prioritizing Azure Speech Service compatible formats
       const supportedTypes = AudioRecorderService.getSupportedMimeTypes();
       
-      // Prefer WAV for best compatibility, fallback to WebM with Opus codec
+      // Priority order: WAV > WebM/Opus > WebM > OGG/Opus > OGG > MP4
       let mimeType = options.mimeType;
       if (!mimeType || !supportedTypes.includes(mimeType)) {
         const preferredTypes = [
-          'audio/wav',
-          'audio/webm;codecs=opus',
-          'audio/webm',
-          'audio/ogg;codecs=opus',
-          'audio/mp4'
+          'audio/wav',                    // Best: No conversion needed
+          'audio/webm;codecs=opus',       // Excellent: Native Azure support
+          'audio/webm',                   // Good: Native Azure support
+          'audio/ogg;codecs=opus',        // Good: Native Azure support
+          'audio/ogg',                    // Good: Native Azure support
+          'audio/mp4;codecs=mp4a.40.2',   // Acceptable: Native Azure support
+          'audio/mp4',                    // Acceptable: Native Azure support
+          'audio/mpeg'                    // Acceptable: Native Azure support
         ];
         
         mimeType = preferredTypes.find(type => supportedTypes.includes(type)) || supportedTypes[0] || 'audio/webm';
       }
 
-      console.log(`🎤 AudioRecorder: Using MIME type: ${mimeType}`);
-      console.log(`🎵 AudioRecorder: Supported types:`, supportedTypes);
+      console.log(`🎤 AudioRecorder: Selected MIME type: ${mimeType}`);
+      console.log(`🎵 AudioRecorder: All supported types:`, supportedTypes);
+      
+      // Check if selected format will need conversion
+      const needsConversion = !mimeType.includes('wav') && 
+                             !mimeType.includes('webm') && 
+                             !mimeType.includes('ogg') && 
+                             !mimeType.includes('mp4') && 
+                             !mimeType.includes('mpeg');
+      
+      if (needsConversion) {
+        console.warn(`⚠️ AudioRecorder: Selected format ${mimeType} may need conversion for Azure Speech Service`);
+      } else {
+        console.log(`✅ AudioRecorder: Selected format ${mimeType} is compatible with Azure Speech Service`);
+      }
 
       // Create MediaRecorder
       const mediaRecorderOptions: MediaRecorderOptions = {
@@ -270,7 +290,9 @@ class AudioRecorderService {
           const result: AudioRecordingResult = {
             blob,
             duration,
-            size: blob.size
+            size: blob.size,
+            format: blob.type,
+            needsConversion: !/wav|pcm/i.test(blob.type)
           };
 
           this.cleanup();

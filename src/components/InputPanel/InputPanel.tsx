@@ -145,10 +145,10 @@ export const InputPanel: React.FC = () => {
 
   const {
     isProcessing: pipelineProcessing,
-    progress,
+    currentStep,
     error: pipelineError,
     isInitialized,
-    generateDiagram,
+    generateMermaidFromAllThreads,
     clearError
   } = useProcessingPipelineContext();
 
@@ -177,10 +177,10 @@ export const InputPanel: React.FC = () => {
       const messageIds = messages.map(msg => msg.id);
       console.log('🔗 InputPanel: Message IDs to process:', messageIds);
       
-      const diagram = await generateDiagram(messageIds);
+      const success = await generateMermaidFromAllThreads();
       
-      if (diagram) {
-        console.log('✅ InputPanel: Diagram generated successfully:', diagram);
+      if (success) {
+        console.log('✅ InputPanel: Diagram generated successfully');
       } else {
         console.warn('⚠️ InputPanel: No diagram returned');
       }
@@ -249,7 +249,7 @@ export const InputPanel: React.FC = () => {
                 borderRadius: '50%',
                 animation: 'spin 1s linear infinite'
               }}></div>
-              <span>{progress || 'Processing...'}</span>
+              <span>{currentStep || 'Processing...'}</span>
             </div>
           </div>
         )}

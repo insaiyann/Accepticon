@@ -1,3 +1,13 @@
+// Transcription status for audio messages
+export type TranscriptionStatus =
+  | 'pending'
+  | 'processing'
+  | 'conversion_error'
+  | 'recognition_error'
+  | 'no_match'
+  | 'recognized'
+  | 'timeout';
+
 export interface Message {
   id: string;
   type: 'text' | 'audio' | 'image';
@@ -13,6 +23,10 @@ export interface AudioMessage extends Message {
   type: 'audio';
   audioBlob?: Blob;
   duration: number;
+  transcriptionStatus?: TranscriptionStatus;
+  transcriptionError?: string;
+  transcriptionConfidence?: number;
+  audioFormat?: string;
 }
 
 export interface TextMessage extends Message {

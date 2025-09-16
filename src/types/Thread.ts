@@ -63,6 +63,7 @@ export interface UpdateThreadOptions {
   title?: string;
   collapsed?: boolean;
   tags?: string[];
+  childIds?: string[];
 }
 
 export interface ThreadContextMenuPosition {

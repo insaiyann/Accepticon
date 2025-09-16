@@ -2,15 +2,28 @@ import React, { useState, useRef, useEffect } from 'react';
 import type { Thread, ThreadMessage } from '../../types/Thread';
 import type { TextMessage, AudioMessage, ImageMessage } from '../../types/Message';
 import { Icon } from '../common/Icon';
+import { AudioDownloadService } from '../../services/download/AudioDownloadService';
 import './ChatOverlay.css';
 
 interface AudioMessageProps {
   audioData: Blob | undefined;
   duration: number;
   transcription?: string;
+  transcriptionStatus?: string;
+  transcriptionError?: string;
+  transcriptionConfidence?: number;
+  messageId?: string; // Add message ID for download
 }
 
-const AudioMessage: React.FC<AudioMessageProps> = ({ audioData, duration, transcription }) => {
+const AudioMessage: React.FC<AudioMessageProps> = ({ 
+  audioData, 
+  duration, 
+  transcription, 
+  transcriptionStatus,
+  transcriptionError,
+  transcriptionConfidence,
+  messageId
+}) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -45,10 +58,60 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ audioData, duration, transc
     }
   };
 
+  const handleDownload = async () => {
+    if (audioData && messageId) {
+      try {
+        // Create a temporary AudioMessage object for download
+        const audioMessage: AudioMessage = {
+          id: messageId,
+          type: 'audio',
+          audioBlob: audioData,
+          duration: duration * 1000, // Convert to milliseconds
+          timestamp: Date.now(),
+          processed: true,
+          content: `Audio message (${Math.round(duration)}s)`,
+          transcriptionStatus: 'recognized',
+          transcription: transcription || '',
+          audioFormat: audioData.type
+        };
+        
+        await AudioDownloadService.downloadAudioMessage(audioMessage);
+      } catch (error) {
+        console.error('Failed to download audio:', error);
+        // TODO: Add user-friendly error notification
+      }
+    }
+  };
+
   const formatDuration = (d: number) => {
     const minutes = Math.floor(d / 60);
     const seconds = Math.floor(d % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const getTranscriptionStatusIcon = (status?: string) => {
+    switch (status) {
+      case 'recognized': return '✅';
+      case 'processing': return '🔄';
+      case 'no_match': return '❌';
+      case 'recognition_error':
+      case 'conversion_error':
+      case 'timeout': return '⚠️';
+      default: return '⏳';
+    }
+  };
+
+  const getTranscriptionStatusText = (status?: string) => {
+    switch (status) {
+      case 'recognized': return 'Transcribed';
+      case 'processing': return 'Processing...';
+      case 'no_match': return 'No speech detected';
+      case 'recognition_error': return 'Recognition failed';
+      case 'conversion_error': return 'Audio format error';
+      case 'timeout': return 'Recognition timeout';
+      case 'pending': return 'Pending transcription';
+      default: return 'Unknown status';
+    }
   };
 
   if (!audioData) {
@@ -66,6 +129,16 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ audioData, duration, transc
         <Icon name="mic" size={16} />
         <span>Audio Message</span>
         <span className="audio-duration">{formatDuration(duration)}</span>
+        {audioData && messageId && (
+          <button 
+            className="audio-download-button"
+            onClick={handleDownload}
+            aria-label="Download audio"
+            title="Download audio as WAV"
+          >
+            <Icon name="download" size={14} />
+          </button>
+        )}
       </div>
       <div className="message-audio-controls">
         <button 
@@ -87,12 +160,41 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ audioData, duration, transc
           </div>
         </div>
       </div>
-      {transcription && transcription.trim().length > 0 && (
-        <div className="message-audio-transcription">
-          <Icon name="text" size={14} />
-          <span className="transcription-text">"{transcription}"</span>
+      
+      {/* Transcription section with enhanced status display */}
+      <div className="message-audio-transcription-section">
+        <div className="transcription-status">
+          <span className="status-icon">{getTranscriptionStatusIcon(transcriptionStatus)}</span>
+          <span className="status-text">{getTranscriptionStatusText(transcriptionStatus)}</span>
+          {transcriptionConfidence && transcriptionStatus === 'recognized' && (
+            <span className="confidence-score">
+              ({Math.round(transcriptionConfidence * 100)}%)
+            </span>
+          )}
         </div>
-      )}
+        
+        {transcription && transcription.trim().length > 0 && transcriptionStatus === 'recognized' && (
+          <div className="message-audio-transcription">
+            <Icon name="text" size={14} />
+            <span className="transcription-text">"{transcription}"</span>
+          </div>
+        )}
+        
+        {transcriptionError && (transcriptionStatus === 'recognition_error' || transcriptionStatus === 'conversion_error') && (
+          <div className="transcription-error">
+            <Icon name="error" size={14} />
+            <span className="error-text">{transcriptionError}</span>
+          </div>
+        )}
+        
+        {transcriptionStatus === 'no_match' && (
+          <div className="transcription-hint">
+            <Icon name="info" size={14} />
+            <span className="hint-text">Try recording again with clearer speech</span>
+          </div>
+        )}
+      </div>
+      
       <audio ref={audioRef} style={{ display: 'none' }} />
     </div>
   );
@@ -134,6 +236,40 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
+  // Helper function to get audio messages for bulk download
+  const getAudioMessages = (): AudioMessage[] => {
+    return messages
+      .map(normalizeMessage)
+      .filter(msg => msg.type === 'audio' && msg.audioBlob)
+      .map(msg => ({
+        id: msg.id,
+        type: 'audio' as const,
+        audioBlob: msg.audioBlob!,
+        duration: (msg.duration || 0) * 1000, // Convert to milliseconds
+        timestamp: msg.timestamp,
+        processed: true,
+        content: `Audio message (${Math.round((msg.duration || 0))}s)`,
+        transcriptionStatus: 'recognized' as const,
+        transcription: msg.transcription || '',
+        audioFormat: msg.audioBlob?.type || 'audio/wav'
+      }));
+  };
+
+  const handleBulkDownload = async () => {
+    const audioMessages = getAudioMessages();
+    if (audioMessages.length === 0) {
+      console.warn('No audio messages to download');
+      return;
+    }
+
+    try {
+      await AudioDownloadService.downloadMultipleAudioMessages(audioMessages);
+    } catch (error) {
+      console.error('Failed to download audio messages:', error);
+      // TODO: Add user-friendly error notification
+    }
+  };
+
   // Helper function to normalize messages for display
   const normalizeMessage = (message: ThreadMessage | TextMessage | AudioMessage | ImageMessage) => {
     if ('sender' in message) {
@@ -148,6 +284,9 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({
         audioBlob: message.type === 'audio' ? message.data : undefined,
         duration: message.duration,
         transcription: message.type === 'audio' ? (message as ThreadMessage & { transcription?: string }).transcription : undefined,
+        transcriptionStatus: message.type === 'audio' ? (message as ThreadMessage & { transcriptionStatus?: string }).transcriptionStatus : undefined,
+        transcriptionError: message.type === 'audio' ? (message as ThreadMessage & { transcriptionError?: string }).transcriptionError : undefined,
+        transcriptionConfidence: message.type === 'audio' ? (message as ThreadMessage & { transcriptionConfidence?: number }).transcriptionConfidence : undefined,
         imageBlob: message.type === 'image' ? message.data : undefined,
         fileName: message.type === 'image' ? (message as ThreadMessage & { fileName?: string }).fileName : undefined,
       };
@@ -165,6 +304,9 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({
         audioBlob: message.type === 'audio' ? (message as AudioMessage).audioBlob : undefined,
         duration: message.type === 'audio' ? (message as AudioMessage).duration : undefined,
         transcription: message.type === 'audio' ? (message as AudioMessage).transcription : undefined,
+        transcriptionStatus: message.type === 'audio' ? (message as AudioMessage).transcriptionStatus : undefined,
+        transcriptionError: message.type === 'audio' ? (message as AudioMessage).transcriptionError : undefined,
+        transcriptionConfidence: message.type === 'audio' ? (message as AudioMessage).transcriptionConfidence : undefined,
         imageBlob: message.type === 'image' ? (message as ImageMessage).imageBlob : undefined,
         fileName: message.type === 'image' ? (message as ImageMessage).fileName : undefined,
       };
@@ -348,13 +490,26 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({
               </span>
             )}
           </div>
-          <button 
-            className="chat-overlay-close"
-            onClick={onClose}
-            aria-label="Close chat"
-          >
-            <Icon name="x" size={20} />
-          </button>
+          <div className="chat-overlay-actions">
+            {getAudioMessages().length > 0 && (
+              <button 
+                className="bulk-download-button"
+                onClick={handleBulkDownload}
+                title={`Download ${getAudioMessages().length} audio messages`}
+                aria-label="Download all audio messages"
+              >
+                <Icon name="download" size={16} />
+                <span>{getAudioMessages().length}</span>
+              </button>
+            )}
+            <button 
+              className="chat-overlay-close"
+              onClick={onClose}
+              aria-label="Close chat"
+            >
+              <Icon name="x" size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
@@ -384,6 +539,10 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({
                         audioData={normalizedMessage.audioBlob}
                         duration={normalizedMessage.duration || 0}
                         transcription={normalizedMessage.transcription}
+                        transcriptionStatus={normalizedMessage.transcriptionStatus}
+                        transcriptionError={normalizedMessage.transcriptionError}
+                        transcriptionConfidence={normalizedMessage.transcriptionConfidence}
+                        messageId={normalizedMessage.id}
                       />
                     )}
                     {normalizedMessage.type === 'image' && (

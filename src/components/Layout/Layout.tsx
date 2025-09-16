@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import ConfigurationPanel from '../ConfigurationPanel/ConfigurationPanel';
-import { useProcessingPipelineContext } from '../../hooks/useProcessingPipelineContext';
+import { useSimplifiedSTTPipeline } from '../../hooks/useSimplifiedSTTPipeline';
 import { Icon } from '../common/Icon';
 
 interface LayoutProps {
@@ -9,7 +9,7 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
-  const { isInitialized } = useProcessingPipelineContext();
+  const { isInitialized } = useSimplifiedSTTPipeline();
 
   const handleConfigSave = async (credentials: {
     speechKey: string;
@@ -18,9 +18,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     openaiEndpoint: string;
     openaiDeployment: string;
   }) => {
-    // Configuration saving will trigger re-initialization through the context
+    // Configuration saving will trigger re-initialization through environment variables
     console.log('Credentials saved:', credentials);
-    // The ProcessingPipelineProvider will handle the actual initialization
+    // The simplified pipeline will auto-initialize with environment variables
   };
 
   return (

@@ -82,7 +82,9 @@ export const useMessages = (): UseMessagesResult => {
         timestamp: Date.now(),
         processed: false,
         type: 'audio',
-        content: `Audio message (${Math.round(duration / 1000)}s)`
+        content: `Audio message (${Math.round(duration / 1000)}s)`,
+        transcriptionStatus: 'pending',
+        audioFormat: audioBlob.type
       });
       
       console.log('✅ useMessages: Audio message added to IndexedDB:', {

@@ -1,6 +1,8 @@
 import { DB_NAME, DB_VERSION, STORES } from './StorageConfig';
-import type { Message, AudioMessage, TextMessage, ImageMessage, ProcessingQueueItem, DiagramCache, StorageQuota } from '../../types/Message';
+import type { Message, AudioMessage, TextMessage, ImageMessage, ProcessingQueueItem, DiagramCache, StorageQuota, TranscriptionStatus } from '../../types/Message';
 import type { Thread, ThreadHierarchy, CreateThreadOptions, UpdateThreadOptions } from '../../types/Thread';
+
+const ENABLE_TRANSCRIPTION_STATUS = import.meta.env?.ENABLE_TRANSCRIPTION_STATUS !== 'false';
 
 class IndexedDBService {
   private db: IDBDatabase | null = null;
@@ -29,7 +31,23 @@ class IndexedDBService {
         try {
           this.verifyDatabaseSchema();
           console.log('✅ IndexedDB: Database schema verified');
-          resolve();
+          console.log(`🛠️ IndexedDB: ENABLE_TRANSCRIPTION_STATUS=${ENABLE_TRANSCRIPTION_STATUS}`);
+          
+          if (ENABLE_TRANSCRIPTION_STATUS) {
+            // Run idempotent migration for audio message transcriptionStatus
+            this.migrateAudioMessages()
+              .then(migrated => {
+                console.log(`🔄 IndexedDB: Audio message migration complete (updated ${migrated.updated}/${migrated.total} legacy messages)`);
+                resolve();
+              })
+              .catch(migErr => {
+                console.warn('⚠️ IndexedDB: Audio message migration failed (continuing):', migErr);
+                resolve();
+              });
+          } else {
+            console.log('⏭️ IndexedDB: Skipping audio message migration (feature flag disabled)');
+            resolve();
+          }
         } catch (error) {
           console.warn('⚠️ IndexedDB: Schema verification failed, recreating database...', error);
           this.recreateDatabase().then(resolve).catch(reject);
@@ -433,15 +451,18 @@ class IndexedDBService {
   /**
    * Update a message with new data (checks both text and audio stores)
    */
-  async updateMessage(id: string, updates: Partial<Message>): Promise<void> {
+  async updateMessage(
+    id: string,
+    updates: Partial<Message> & Record<string, unknown>
+  ): Promise<void> {
     await this.ensureInitialized();
-
+    
     // First try to update in text messages store
     const textUpdateResult = await new Promise<boolean>((resolve, reject) => {
       const transaction = this.db!.transaction([STORES.MESSAGES], 'readwrite');
       const store = transaction.objectStore(STORES.MESSAGES);
       const getRequest = store.get(id);
-
+ 
       getRequest.onsuccess = () => {
         const message = getRequest.result;
         if (message) {
@@ -453,20 +474,20 @@ class IndexedDBService {
           resolve(false); // Message not found in this store
         }
       };
-
+ 
       getRequest.onerror = () => reject(new Error('Failed to get text message for update'));
     });
-
+ 
     if (textUpdateResult) {
       return; // Successfully updated in text store
     }
-
+ 
     // If not found in text store, try audio messages store
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([STORES.AUDIO_MESSAGES], 'readwrite');
       const store = transaction.objectStore(STORES.AUDIO_MESSAGES);
       const getRequest = store.get(id);
-
+ 
       getRequest.onsuccess = () => {
         const message = getRequest.result;
         if (message) {
@@ -478,7 +499,7 @@ class IndexedDBService {
           reject(new Error('Message not found in either store'));
         }
       };
-
+ 
       getRequest.onerror = () => reject(new Error('Failed to get audio message for update'));
     });
   }
@@ -557,8 +578,41 @@ class IndexedDBService {
       return true; // Successfully deleted from audio store
     }
 
-    console.warn(`⚠️ IndexedDB: Message ${id} not found in either store for deletion`);
-    return false; // Message not found in either store
+    // If not found in audio store, try image messages store
+    const imageDeleteResult = await new Promise<boolean>((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.IMAGE_MESSAGES], 'readwrite');
+      const store = transaction.objectStore(STORES.IMAGE_MESSAGES);
+      const getRequest = store.get(id);
+
+      getRequest.onsuccess = () => {
+        const message = getRequest.result;
+        if (message) {
+          const deleteRequest = store.delete(id);
+          deleteRequest.onsuccess = () => {
+            console.log(`✅ IndexedDB: Successfully deleted image message: ${id}`);
+            resolve(true);
+          };
+          deleteRequest.onerror = () => {
+            console.error(`❌ IndexedDB: Failed to delete image message: ${id}`, deleteRequest.error);
+            reject(new Error('Failed to delete image message'));
+          };
+        } else {
+          resolve(false); // Message not found in this store
+        }
+      };
+
+      getRequest.onerror = () => {
+        console.error(`❌ IndexedDB: Failed to get image message for deletion: ${id}`, getRequest.error);
+        reject(new Error('Failed to get image message for deletion'));
+      };
+    });
+
+    if (imageDeleteResult) {
+      return true; // Successfully deleted from image store
+    }
+
+    console.warn(`⚠️ IndexedDB: Message ${id} not found in any store for deletion`);
+    return false; // Message not found in any store
   }
 
   /**
@@ -566,15 +620,54 @@ class IndexedDBService {
    */
   async getAudioMessages(): Promise<AudioMessage[]> {
     await this.ensureInitialized();
-
+ 
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([STORES.AUDIO_MESSAGES], 'readonly');
       const store = transaction.objectStore(STORES.AUDIO_MESSAGES);
       const request = store.getAll();
-
+ 
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(new Error('Failed to get audio messages'));
     });
+  }
+ 
+  // Duplicate migrateAudioMessages removed (see primary implementation above)
+
+  /**
+   * Migration: ensure all audio messages have transcriptionStatus.
+   * Idempotent - safe to run multiple times.
+   * Rules:
+   *  - If transcriptionStatus missing and transcription present => recognized
+   *  - If transcriptionStatus missing and no transcription => pending
+   *  - If recognized but empty transcription => no_match (defensive)
+   */
+  async migrateAudioMessages(): Promise<{ total: number; updated: number }> {
+    await this.ensureInitialized();
+    try {
+      const audioMessages = await this.getAudioMessages();
+      let updated = 0;
+      for (const msg of audioMessages) {
+        const audio = msg as AudioMessage;
+        if (audio.transcriptionStatus === undefined) {
+          let status: TranscriptionStatus;
+          if (audio.transcription && audio.transcription.trim().length > 0) {
+            status = 'recognized';
+          } else {
+            status = 'pending';
+          }
+          // Defensive: recognized but empty → no_match
+            if (status === 'recognized' && (!audio.transcription || audio.transcription.trim().length === 0)) {
+              status = 'no_match';
+            }
+          await this.updateMessage(audio.id, { transcriptionStatus: status });
+          updated++;
+        }
+      }
+      return { total: audioMessages.length, updated };
+    } catch (e) {
+      console.warn('⚠️ IndexedDB: migrateAudioMessages failed:', e);
+      return { total: 0, updated: 0 };
+    }
   }
 
   /**
@@ -995,35 +1088,140 @@ class IndexedDBService {
   }
 
   /**
-   * Delete a thread and all its children
+   * Delete a thread and all its children recursively, including all associated messages
    */
   async deleteThread(id: string): Promise<boolean> {
     await this.ensureInitialized();
+    console.log(`🗑️ IndexedDB: Starting deletion of thread: ${id}`);
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([STORES.THREADS], 'readwrite');
-      const store = transaction.objectStore(STORES.THREADS);
-      
-      // First get the thread to check for children
-      const getRequest = store.get(id);
-      
-      getRequest.onsuccess = () => {
-        const thread = getRequest.result;
-        if (thread) {
-          // TODO: Recursively delete child threads
-          const deleteRequest = store.delete(id);
-          deleteRequest.onsuccess = () => {
-            console.log(`✅ IndexedDB: Deleted thread: ${id}`);
-            resolve(true);
-          };
-          deleteRequest.onerror = () => reject(new Error('Failed to delete thread'));
-        } else {
-          resolve(false);
+    try {
+      // Get the thread to be deleted
+      const thread = await this.getThread(id);
+      if (!thread) {
+        console.warn(`⚠️ IndexedDB: Thread ${id} not found for deletion`);
+        return false;
+      }
+
+      // First, recursively collect all threads to delete (including children)
+      const threadsToDelete = await this.collectThreadsToDelete(id);
+      console.log(`📊 IndexedDB: Found ${threadsToDelete.length} threads to delete (including children):`, threadsToDelete.map(t => t.id));
+
+      // Collect all message IDs from all threads to be deleted
+      const messageIdsToDelete = new Set<string>();
+      for (const threadToDelete of threadsToDelete) {
+        // Add from legacy messageIds array
+        threadToDelete.messageIds?.forEach(msgId => messageIdsToDelete.add(msgId));
+        
+        // Add from organized message collections
+        if (threadToDelete.messages) {
+          threadToDelete.messages.text?.forEach(msgId => messageIdsToDelete.add(msgId));
+          threadToDelete.messages.audio?.forEach(msgId => messageIdsToDelete.add(msgId));
+          threadToDelete.messages.image?.forEach(msgId => messageIdsToDelete.add(msgId));
         }
-      };
+      }
 
-      getRequest.onerror = () => reject(new Error('Failed to get thread for deletion'));
-    });
+      console.log(`📨 IndexedDB: Found ${messageIdsToDelete.size} messages to delete:`, Array.from(messageIdsToDelete));
+
+      // Delete all messages first
+      for (const messageId of messageIdsToDelete) {
+        try {
+          await this.deleteMessage(messageId);
+          console.log(`✅ IndexedDB: Deleted message: ${messageId}`);
+        } catch (error) {
+          console.error(`❌ IndexedDB: Failed to delete message ${messageId}:`, error);
+          // Continue with other deletions even if one fails
+        }
+      }
+
+      // Remove the main thread from its parent's childIds (if it has a parent)
+      if (thread.parentId) {
+        await this.removeChildFromParent(thread.parentId, id);
+      }
+
+      // Delete all threads (children first, then parent)
+      const threadIdsToDelete = threadsToDelete.map(t => t.id).reverse(); // Reverse to delete children first
+      
+      return new Promise((resolve, reject) => {
+        const transaction = this.db!.transaction([STORES.THREADS], 'readwrite');
+        const store = transaction.objectStore(STORES.THREADS);
+        
+        let deletedCount = 0;
+        const errors: string[] = [];
+
+        const deleteNextThread = () => {
+          if (deletedCount >= threadIdsToDelete.length) {
+            if (errors.length > 0) {
+              console.error(`❌ IndexedDB: Some thread deletions failed:`, errors);
+              reject(new Error(`Failed to delete some threads: ${errors.join(', ')}`));
+            } else {
+              console.log(`✅ IndexedDB: Successfully deleted all ${deletedCount} threads`);
+              resolve(true);
+            }
+            return;
+          }
+
+          const threadIdToDelete = threadIdsToDelete[deletedCount];
+          const deleteRequest = store.delete(threadIdToDelete);
+          
+          deleteRequest.onsuccess = () => {
+            console.log(`✅ IndexedDB: Deleted thread: ${threadIdToDelete}`);
+            deletedCount++;
+            deleteNextThread();
+          };
+          
+          deleteRequest.onerror = () => {
+            console.error(`❌ IndexedDB: Failed to delete thread: ${threadIdToDelete}`, deleteRequest.error);
+            errors.push(threadIdToDelete);
+            deletedCount++;
+            deleteNextThread(); // Continue with next deletion
+          };
+        };
+
+        deleteNextThread();
+      });
+
+    } catch (error) {
+      console.error(`❌ IndexedDB: Thread deletion failed for ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Recursively collect all threads that need to be deleted (thread + all descendants)
+   */
+  private async collectThreadsToDelete(threadId: string): Promise<Thread[]> {
+    const threads: Thread[] = [];
+    const visited = new Set<string>();
+
+    const collectRecursively = async (id: string) => {
+      if (visited.has(id)) return;
+      visited.add(id);
+
+      const thread = await this.getThread(id);
+      if (thread) {
+        threads.push(thread);
+        
+        // Recursively collect all children
+        for (const childId of thread.childIds) {
+          await collectRecursively(childId);
+        }
+      }
+    };
+
+    await collectRecursively(threadId);
+    return threads;
+  }
+
+  /**
+   * Remove a child thread ID from its parent's childIds array
+   */
+  private async removeChildFromParent(parentId: string, childId: string): Promise<void> {
+    const parent = await this.getThread(parentId);
+    if (parent) {
+      const updatedChildIds = parent.childIds.filter(id => id !== childId);
+      await this.updateThread(parentId, { childIds: updatedChildIds });
+      console.log(`✅ IndexedDB: Removed child ${childId} from parent ${parentId}`);
+    }
   }
 
   /**

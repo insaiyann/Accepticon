@@ -1,6 +1,7 @@
 import React from 'react';
 import type { TextMessage, AudioMessage, ImageMessage } from '../../types/Message';
 import { Icon } from './Icon';
+import { AudioDownloadService } from '../../services/download/AudioDownloadService';
 import './MessageComponent.css';
 
 interface MessageProps {
@@ -71,6 +72,17 @@ export const MessageComponent: React.FC<MessageProps> = ({ message, onDelete }) 
     }
   };
 
+  const handleAudioDownload = async () => {
+    if (message.type === 'audio') {
+      try {
+        await AudioDownloadService.downloadAudioMessage(message as AudioMessage);
+      } catch (error) {
+        console.error('Failed to download audio:', error);
+        // TODO: Add user-friendly error notification
+      }
+    }
+  };
+
   const renderTextMessage = (msg: TextMessage) => (
     <div className="message-body">
       <div className="message-content-text">
@@ -103,6 +115,14 @@ export const MessageComponent: React.FC<MessageProps> = ({ message, onDelete }) 
               <span className="audio-duration">
                 {formatDuration(msg.duration)}
               </span>
+              <button 
+                className="audio-download-button" 
+                onClick={handleAudioDownload}
+                aria-label="Download audio"
+                title="Download audio as WAV"
+              >
+                <Icon name="download" size={16} />
+              </button>
             </>
           ) : (
             <div className="audio-loading">

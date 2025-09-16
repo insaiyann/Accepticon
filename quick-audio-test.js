@@ -33,8 +33,34 @@ async function quickAudioTest() {
             console.log(`      Has Blob: ${!!msg.audioBlob}`);
             console.log(`      Blob Size: ${msg.audioBlob?.size || 0} bytes`);
             console.log(`      Has Transcription: ${!!msg.transcription}`);
+            console.log(`      Transcription Status: ${msg.transcriptionStatus || 'none'}`);
             console.log(`      Transcription: "${msg.transcription || 'none'}"`);
+            if (msg.transcriptionStatus === 'recognized' && (!msg.transcription || msg.transcription.trim().length === 0)) {
+              console.warn('      ⚠️ Inconsistent: recognized status with empty transcription (should be no_match)');
+            }
           });
+
+          // Live diagnostic: attempt fresh transcription of first audio message if speechService is available
+          const first = audioMessages[0];
+          if (typeof window !== 'undefined' && (window).speechService && first?.audioBlob) {
+            console.log('🧪 Attempting live transcription (queue-style) of first audio message...');
+            (async () => {
+              try {
+                const result = await (window).speechService.transcribeAudio(first.audioBlob);
+                console.log('🧪 Live transcription result:', {
+                  status: result.status,
+                  text: result.text,
+                  confidence: result.confidence,
+                  error: result.error
+                });
+                if (!result.status) {
+                  console.error('❌ Live transcription missing status field');
+                }
+              } catch (e) {
+                console.error('❌ Live transcription failed:', e);
+              }
+            })();
+          }
           
           // Test 3: Simulate message retrieval
           console.log('\n4. Testing message retrieval (simulating ProcessingPipeline)...');
