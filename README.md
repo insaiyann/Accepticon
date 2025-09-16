@@ -169,7 +169,7 @@ src/
 {
   apiKey: "YOUR_AZURE_OPENAI_KEY",
   endpoint: "https://your-endpoint.cognitiveservices.azure.com",
-  deployment: "gpt-4o",
+  deployment: "gpt-5-chat",
   apiVersion: "2023-12-01-preview"
 }
 ```

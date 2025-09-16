@@ -185,7 +185,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                 type="text"
                 value={credentials.openaiDeployment}
                 onChange={(e) => handleChange('openaiDeployment', e.target.value)}
-                placeholder="gpt-4"
+                placeholder="gpt-5-chat"
               />
             </div>
           </div>
