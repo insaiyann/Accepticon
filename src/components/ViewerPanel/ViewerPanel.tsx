@@ -1,11 +1,10 @@
 import React, { useEffect } from 'react';
 import MermaidViewer from '../MermaidViewer/MermaidViewer';
 import './ViewerPanel.css';
+import { useDiagram } from '../../context/DiagramContext';
 
 export const ViewerPanel: React.FC = () => {
-  // Pipeline hook removed; viewer will need mermaid code via higher-level state later.
-  const [mermaidCode] = React.useState<string | undefined>(undefined);
-  const [title] = React.useState<string | undefined>(undefined);
+  const { mermaidCode, title } = useDiagram();
   const [error, setError] = React.useState<string | null>(null);
   const clearError = React.useCallback(()=> setError(null),[]);
 

@@ -7,6 +7,7 @@ import { useThreads } from '../../hooks/useThreads';
 // Removed old STT hook – using minimal service directly
 import { minimalSTTService } from '../../services/MinimalSTTService';
 import { indexedDBService } from '../../services/storage/IndexedDBService';
+import { useDiagram } from '../../context/DiagramContext';
 import type { Thread } from '../../types/Thread';
 import type { AudioMessage, TextMessage, ImageMessage } from '../../types/Message';
 
@@ -190,6 +191,8 @@ export const InputPanel: React.FC = () => {
     }
   };
 
+  const { setDiagram } = useDiagram();
+
   const handleGenerateDiagram = async () => {
     if (messages.length === 0) {
       alert('Please add some messages before generating a diagram');
@@ -235,8 +238,9 @@ export const InputPanel: React.FC = () => {
       
       setPipelineProcessing(true); setCurrentStep('Generating diagram...');
       try {
-  await minimalSTTService.generateDiagramFromStoredMessages();
-        console.log('✅ InputPanel: Diagram generated');
+        const result = await minimalSTTService.generateDiagramFromStoredMessages();
+        console.log('✅ InputPanel: Diagram generated', { length: result.mermaidCode.length, title: result.title });
+        setDiagram(result.mermaidCode, result.title || 'Diagram');
       } catch(e) {
         const msg = e instanceof Error ? e.message : 'Diagram generation failed';
         setPipelineError(msg); console.error('❌ Diagram generation failed', msg);
