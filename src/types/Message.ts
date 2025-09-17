@@ -24,7 +24,7 @@ export interface AudioMessage extends Message {
   audioBlob?: Blob;
   duration: number;
   transcriptionStatus?: TranscriptionStatus;
-  transcriptionError?: string;
+  transcriptionError?: string | null;
   transcriptionConfidence?: number;
   audioFormat?: string;
 }
@@ -89,3 +89,4 @@ export interface StorageQuota {
   warning: boolean; // > 80% usage
   critical: boolean; // > 95% usage
 }
+

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import type { Thread, ThreadMessage } from '../../types/Thread';
 import type { TextMessage, AudioMessage, ImageMessage } from '../../types/Message';
 import { Icon } from '../common/Icon';
@@ -10,7 +10,7 @@ interface AudioMessageProps {
   duration: number;
   transcription?: string;
   transcriptionStatus?: string;
-  transcriptionError?: string;
+  transcriptionError?: string | null;
   transcriptionConfidence?: number;
   messageId?: string; // Add message ID for download
 }
@@ -91,13 +91,13 @@ const AudioMessage: React.FC<AudioMessageProps> = ({
 
   const getTranscriptionStatusIcon = (status?: string) => {
     switch (status) {
-      case 'recognized': return '✅';
-      case 'processing': return '🔄';
-      case 'no_match': return '❌';
+      case 'recognized': return 'âœ…';
+      case 'processing': return 'ðŸ”„';
+      case 'no_match': return 'âŒ';
       case 'recognition_error':
       case 'conversion_error':
-      case 'timeout': return '⚠️';
-      default: return '⏳';
+      case 'timeout': return 'âš ï¸';
+      default: return 'â³';
     }
   };
 
@@ -645,3 +645,4 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({
     </div>
   );
 };
+

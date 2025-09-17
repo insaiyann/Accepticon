@@ -1,4 +1,4 @@
-export interface AudioRecordingOptions {
+﻿export interface AudioRecordingOptions {
   mimeType?: string;
   audioBitsPerSecond?: number;
   maxDuration?: number; // in milliseconds
@@ -144,9 +144,6 @@ class AudioRecorderService {
           autoGainControl: true,
           channelCount: 1,
           sampleRate: 16000, // Optimal for speech recognition
-          // Additional constraints for better speech quality
-          sampleSize: 16,
-          volume: 1.0
         }
       });
 
@@ -170,8 +167,8 @@ class AudioRecorderService {
         mimeType = preferredTypes.find(type => supportedTypes.includes(type)) || supportedTypes[0] || 'audio/webm';
       }
 
-      console.log(`🎤 AudioRecorder: Selected MIME type: ${mimeType}`);
-      console.log(`🎵 AudioRecorder: All supported types:`, supportedTypes);
+      console.log(`[AudioRecorder] Selected MIME type: ${mimeType}`);
+      console.log(`[AudioRecorder] Supported types`, supportedTypes);
       
       // Check if selected format will need conversion
       const needsConversion = !mimeType.includes('wav') && 
@@ -181,9 +178,9 @@ class AudioRecorderService {
                              !mimeType.includes('mpeg');
       
       if (needsConversion) {
-        console.warn(`⚠️ AudioRecorder: Selected format ${mimeType} may need conversion for Azure Speech Service`);
+        console.warn(`[AudioRecorder] Selected format ${mimeType} may need conversion for Azure Speech Service`);
       } else {
-        console.log(`✅ AudioRecorder: Selected format ${mimeType} is compatible with Azure Speech Service`);
+        console.log(`[AudioRecorder] Selected format ${mimeType} is compatible with Azure Speech Service`);
       }
 
       // Create MediaRecorder
@@ -262,7 +259,7 @@ class AudioRecorderService {
       throw new Error('No active recording to stop');
     }
 
-    console.log('🎤 AudioRecorder: Stopping recording...');
+    console.log('ðŸŽ¤ AudioRecorder: Stopping recording...');
 
     return new Promise((resolve, reject) => {
       if (!this.mediaRecorder) {
@@ -272,7 +269,7 @@ class AudioRecorderService {
 
       this.mediaRecorder.onstop = () => {
         try {
-          console.log(`🎵 AudioRecorder: Processing ${this.audioChunks.length} audio chunks`);
+          console.log(`ðŸŽµ AudioRecorder: Processing ${this.audioChunks.length} audio chunks`);
           
           const blob = new Blob(this.audioChunks, { 
             type: this.mediaRecorder?.mimeType || 'audio/webm' 
@@ -280,7 +277,7 @@ class AudioRecorderService {
           
           const duration = this.getCurrentDuration();
           
-          console.log('🎧 AudioRecorder: Created audio blob:', {
+          console.log('ðŸŽ§ AudioRecorder: Created audio blob:', {
             size: blob.size,
             type: blob.type,
             duration: duration,
@@ -296,10 +293,10 @@ class AudioRecorderService {
           };
 
           this.cleanup();
-          console.log('✅ AudioRecorder: Recording stopped successfully');
+          console.log('âœ… AudioRecorder: Recording stopped successfully');
           resolve(result);
         } catch (error) {
-          console.error('❌ AudioRecorder: Error creating audio result:', error);
+          console.error('âŒ AudioRecorder: Error creating audio result:', error);
           reject(error);
         }
       };
@@ -425,3 +422,9 @@ class AudioRecorderService {
 // Create singleton instance
 export const audioRecorderService = new AudioRecorderService();
 export default audioRecorderService;
+
+
+
+
+
+

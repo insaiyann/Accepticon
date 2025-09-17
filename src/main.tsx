@@ -1,26 +1,26 @@
-import { StrictMode } from 'react'
+﻿import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 
 // Import services for debugging
 import { indexedDBService } from './services/storage/IndexedDBService';
 import { audioRecorderService } from './services/audio/AudioRecorder';
-import { newSTTPipelineService } from './services/NewSTTPipeline';
+import { speechTranscriptionPipeline } from './services/speech/SpeechTranscriptionPipeline';
 
 // Expose services to window for debugging (development only)
 if (import.meta.env.DEV) {
   const globalWindow = window as typeof window & {
     indexedDBService: typeof indexedDBService;
     audioRecorderService: typeof audioRecorderService;
-    newSTTPipelineService: typeof newSTTPipelineService;
+    speechTranscriptionPipeline: typeof speechTranscriptionPipeline;
   };
   
   globalWindow.indexedDBService = indexedDBService;
   globalWindow.audioRecorderService = audioRecorderService;
-  globalWindow.newSTTPipelineService = newSTTPipelineService;
+  globalWindow.speechTranscriptionPipeline = speechTranscriptionPipeline;
   
-  console.log('🔧 Debug mode: Services exposed to window object');
-  console.log('💡 Use window.newSTTPipelineService for testing new STT pipeline');
+  console.log('[main] Debug mode: services exposed on window');
+  console.log('[main] Use window.speechTranscriptionPipeline for manual testing');
 }
 
 createRoot(document.getElementById('root')!).render(
@@ -28,3 +28,5 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+
