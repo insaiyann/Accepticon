@@ -238,9 +238,9 @@ export const InputPanel: React.FC = () => {
       
       setPipelineProcessing(true); setCurrentStep('Generating diagram...');
       try {
-        const result = await minimalSTTService.generateDiagramFromStoredMessages();
-        console.log('✅ InputPanel: Diagram generated', { length: result.mermaidCode.length, title: result.title });
-        setDiagram(result.mermaidCode, result.title || 'Diagram');
+  const result = await minimalSTTService.generateDiagramFromStoredMessages();
+  console.log('✅ InputPanel: Diagram generated', { length: result.mermaidCode.length });
+  setDiagram(result.mermaidCode, 'Diagram');
       } catch(e) {
         const msg = e instanceof Error ? e.message : 'Diagram generation failed';
         setPipelineError(msg); console.error('❌ Diagram generation failed', msg);

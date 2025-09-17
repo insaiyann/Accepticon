@@ -23,7 +23,6 @@ export interface PipelineResult {
   success: boolean;
   error?: string;
   mermaidCode?: string;
-  title?: string;
   totalMessages?: number;
   transcriptionCount?: number;
 }
@@ -219,7 +218,6 @@ export class SimpleAudioPipeline {
       return {
         success: true,
         mermaidCode: result.mermaidCode,
-        title: result.title,
         totalMessages: allMessages.length,
         transcriptionCount: transcribedAudio.length
       };
