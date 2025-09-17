@@ -5,7 +5,7 @@
 
 import { simpleAudioPipeline } from '../services/SimpleAudioPipeline';
 import { SimpleAudioRecorder } from '../services/audio/SimpleAudioRecorder';
-import { simpleSpeechService } from '../services/azure/SimpleSpeechService';
+import { newSTTPipelineService } from '../services/NewSTTPipeline';
 
 // Test configuration
 const testConfig = {
@@ -51,15 +51,14 @@ export async function testSpeechServiceConnection() {
   console.log('🧪 Testing Azure Speech Service connection...');
   
   try {
-    await simpleSpeechService.initialize({
-      subscriptionKey: testConfig.azureSpeechKey,
-      region: testConfig.azureSpeechRegion,
-      language: 'en-US'
-    });
+    const initSuccess = await newSTTPipelineService.autoInitialize();
+    if (!initSuccess) {
+      throw new Error('STT pipeline auto-initialization failed');
+    }
     
-    const isReady = simpleSpeechService.isReady();
-    console.log(`🎯 Speech service ready: ${isReady}`);
-    return isReady;
+    const status = newSTTPipelineService.getStatus();
+    console.log(`🎯 Speech service ready: ${status.isInitialized}`);
+    return status.isInitialized;
   } catch (error) {
     console.error('❌ Speech service connection failed:', error);
     return false;
@@ -99,12 +98,9 @@ export async function testAudioTranscription() {
       throw new Error('Pipeline initialization failed');
     }
     
-    // Create test audio
-    const audioBlob = await createTestAudioMessage();
-    
-    // Test transcription
-    const result = await simpleSpeechService.transcribeAudio(audioBlob);
-    console.log('🎯 Transcription result:', result);
+    // Test processing existing audio messages
+    const result = await newSTTPipelineService.processAudioMessagesAndSaveTranscripts();
+    console.log('🎯 STT Processing result:', result);
     
     return result.success;
   } catch (error) {

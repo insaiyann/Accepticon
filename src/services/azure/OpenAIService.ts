@@ -92,7 +92,7 @@ class OpenAIService {
         const prompt = this.buildProgressiveMermaidPrompt(content, options, attempt);
         
         const response = await this.client.chat.completions.create({
-          model: 'gpt-5-chat', // This will be mapped to the deployment
+          model: 'gpt-4o', // This will be mapped to the deployment
           messages: [
             {
               role: 'system',

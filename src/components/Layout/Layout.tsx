@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import ConfigurationPanel from '../ConfigurationPanel/ConfigurationPanel';
-import { useSimplifiedSTTPipeline } from '../../hooks/useSimplifiedSTTPipeline';
+import { useProcessingPipelineContext } from '../../hooks/useProcessingPipelineContext';
 import { Icon } from '../common/Icon';
 
 interface LayoutProps {
@@ -9,7 +9,7 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
-  const { isInitialized } = useSimplifiedSTTPipeline();
+  const { isInitialized } = useProcessingPipelineContext();
 
   const handleConfigSave = async (credentials: {
     speechKey: string;

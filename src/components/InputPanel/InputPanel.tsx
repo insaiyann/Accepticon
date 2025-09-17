@@ -5,6 +5,7 @@ import { ChatOverlay } from '../ChatOverlay/ChatOverlay';
 import { useMessages } from '../../hooks/useMessages';
 import { useThreads } from '../../hooks/useThreads';
 import { useProcessingPipelineContext } from '../../hooks/useProcessingPipelineContext';
+import { useNewSTTPipeline } from '../../hooks/useNewSTTPipeline';
 import { indexedDBService } from '../../services/storage/IndexedDBService';
 import type { Thread } from '../../types/Thread';
 import type { AudioMessage, TextMessage, ImageMessage } from '../../types/Message';
@@ -152,6 +153,18 @@ export const InputPanel: React.FC = () => {
     clearError
   } = useProcessingPipelineContext();
 
+  // New STT Pipeline Hook
+  const {
+    isInitialized: sttInitialized,
+    isProcessing: sttProcessing,
+    progress: sttProgress,
+    error: sttError,
+    lastResult: sttResult,
+    processAudioMessages,
+    clearError: clearSTTError,
+    progressPercentage
+  } = useNewSTTPipeline();
+
   const handleGenerateDiagram = async () => {
     if (messages.length === 0) {
       alert('Please add some messages before generating a diagram');
@@ -160,6 +173,11 @@ export const InputPanel: React.FC = () => {
 
     if (!isInitialized) {
       alert('Processing pipeline not initialized. Please check your Azure credentials.');
+      return;
+    }
+
+    if (!sttInitialized) {
+      alert('STT pipeline not initialized. Please check your Azure Speech Service credentials.');
       return;
     }
     
@@ -173,7 +191,20 @@ export const InputPanel: React.FC = () => {
         audioBlobSize: (m.type === 'audio' && (m as AudioMessage).audioBlob?.size) || 0,
         hasTranscription: !!(m.type === 'audio' && (m as AudioMessage).transcription)
       })));
+
+      // Step 1: Process audio messages with the new STT pipeline
+      console.log('🎤 InputPanel: Processing audio messages with new STT pipeline...');
+      const sttSuccess = await processAudioMessages();
       
+      if (!sttSuccess) {
+        console.error('❌ InputPanel: STT processing failed');
+        alert('Failed to process audio messages. Please check the console for details.');
+        return;
+      }
+
+      console.log('✅ InputPanel: STT processing completed successfully');
+
+      // Step 2: Generate diagram with the existing pipeline
       const messageIds = messages.map(msg => msg.id);
       console.log('🔗 InputPanel: Message IDs to process:', messageIds);
       
@@ -190,7 +221,7 @@ export const InputPanel: React.FC = () => {
   };
 
   const hasMessages = messages.length > 0;
-  const canGenerate = hasMessages && !pipelineProcessing && isInitialized;
+  const canGenerate = hasMessages && !pipelineProcessing && !sttProcessing && isInitialized && sttInitialized;
 
   return (
     <div className="input-panel">
@@ -201,7 +232,7 @@ export const InputPanel: React.FC = () => {
       
       <div className="input-panel-content">
         {/* Error display */}
-        {(messagesError || threadsError || pipelineError) && (
+        {(messagesError || threadsError || pipelineError || sttError) && (
           <div style={{ 
             padding: '0.5rem 1rem', 
             backgroundColor: '#f8d7da', 
@@ -212,10 +243,10 @@ export const InputPanel: React.FC = () => {
             justifyContent: 'space-between',
             alignItems: 'center'
           }}>
-            <span>{messagesError || threadsError || pipelineError}</span>
-            {pipelineError && (
+            <span>{messagesError || threadsError || pipelineError || sttError}</span>
+            {(pipelineError || sttError) && (
               <button 
-                onClick={clearError}
+                onClick={pipelineError ? clearError : clearSTTError}
                 style={{ 
                   background: 'none', 
                   border: 'none', 
@@ -232,7 +263,7 @@ export const InputPanel: React.FC = () => {
         )}
 
         {/* Processing status */}
-        {pipelineProcessing && (
+        {(pipelineProcessing || sttProcessing) && (
           <div style={{ 
             padding: '0.5rem 1rem', 
             backgroundColor: '#d1ecf1', 
@@ -249,8 +280,22 @@ export const InputPanel: React.FC = () => {
                 borderRadius: '50%',
                 animation: 'spin 1s linear infinite'
               }}></div>
-              <span>{currentStep || 'Processing...'}</span>
+              <span>
+                {sttProcessing 
+                  ? `Processing audio transcriptions${sttProgress ? ` (${progressPercentage}%)` : '...'}`
+                  : currentStep || 'Processing...'
+                }
+              </span>
             </div>
+            {sttProgress && (
+              <div style={{ 
+                marginTop: '0.5rem', 
+                fontSize: '0.875rem',
+                opacity: 0.8 
+              }}>
+                {sttProgress.message} ({sttProgress.current}/{sttProgress.total})
+              </div>
+            )}
           </div>
         )}
 
@@ -281,16 +326,53 @@ export const InputPanel: React.FC = () => {
             disabled={!canGenerate}
           >
             <Icon name="diagram" size={16} className="icon" />
-            {pipelineProcessing ? 'Generating...' : 'Generate Mermaid Diagram'}
+            {(pipelineProcessing || sttProcessing) ? 'Generating...' : 'Generate Mermaid Diagram'}
           </button>
           <p className="generate-info">
-            {!isInitialized 
-              ? 'Initializing Azure services...'
-              : !hasMessages 
-              ? 'Add messages to enable diagram generation'
-              : `Ready to generate diagram from ${messages.length} message${messages.length === 1 ? '' : 's'}`
-            }
+            {(() => {
+              // Improve status messaging to avoid perpetual "Initializing" when initialization already failed
+              if (!isInitialized) {
+                if (pipelineError) {
+                  return 'Azure services not initialized – check configuration.';
+                }
+                // If there's no explicit error but still not initialized, show a neutral waiting state
+                return currentStep && currentStep.toLowerCase().includes('initializing')
+                  ? 'Initializing Azure services...'
+                  : 'Awaiting Azure configuration...';
+              }
+              if (!sttInitialized) {
+                return sttError ? 'Speech-to-Text not initialized – check credentials.' : 'Initializing Speech-to-Text service...';
+              }
+              if (!hasMessages) {
+                return 'Add messages to enable diagram generation';
+              }
+              return `Ready to generate diagram from ${messages.length} message${messages.length === 1 ? '' : 's'}`;
+            })()}
           </p>
+          {sttResult && (
+            <div style={{
+              marginTop: '0.5rem',
+              padding: '0.5rem',
+              backgroundColor: sttResult.failed > 0 ? '#fff3cd' : '#d4edda',
+              color: sttResult.failed > 0 ? '#856404' : '#155724',
+              borderRadius: '4px',
+              fontSize: '0.875rem'
+            }}>
+              <strong>Last STT Results:</strong> {sttResult.successful} successful, {sttResult.failed} failed
+              {sttResult.errors.length > 0 && (
+                <div style={{ marginTop: '0.25rem' }}>
+                  <details>
+                    <summary>View errors ({sttResult.errors.length})</summary>
+                    <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1rem' }}>
+                      {sttResult.errors.map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </details>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

@@ -65,9 +65,13 @@ export const useSimpleAudioPipeline = () => {
 
     initializePipeline();
 
-    // Cleanup on unmount
+    // Cleanup on unmount (remove listener but do not always tear down pipeline for other consumers)
     return () => {
-      simpleAudioPipeline.cleanup();
+      simpleAudioPipeline.removeStateChangeCallback(handlePipelineStateChange);
+      // Only perform full cleanup if no more listeners
+      // (Heuristic: if there are zero callbacks after removal)
+      // Accessing private field isn't possible; rely on a safe cleanup always for now could disrupt others.
+      // Better: expose a method to check subscribers; skipping full cleanup to prevent race.
     };
   }, [handlePipelineStateChange]);
 

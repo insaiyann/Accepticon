@@ -1,10 +1,10 @@
 import React, { useEffect } from 'react';
 import MermaidViewer from '../MermaidViewer/MermaidViewer';
-import { useSimplifiedSTTPipeline } from '../../hooks/useSimplifiedSTTPipeline';
+import { useProcessingPipelineContext } from '../../hooks/useProcessingPipelineContext';
 import './ViewerPanel.css';
 
 export const ViewerPanel: React.FC = () => {
-  const { currentMermaidCode, currentTitle, error, clearError } = useSimplifiedSTTPipeline();
+  const { currentMermaidCode, currentTitle, error, clearError } = useProcessingPipelineContext();
 
   const handleDiagramError = (error: string) => {
     console.error('Diagram rendering error:', error);
