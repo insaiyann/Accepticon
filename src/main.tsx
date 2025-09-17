@@ -4,7 +4,7 @@ import App from './App.tsx'
 
 // Import services for debugging
 import { indexedDBService } from './services/storage/IndexedDBService';
-import { audioRecorderService } from './services/audio/AudioRecorder';
+import { audioRecorderService } from './services/audio/SimpleAudioRecorder';
 // Removed NewSTTPipeline debug import
 
 // Expose services to window for debugging (development only)

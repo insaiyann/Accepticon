@@ -3,14 +3,25 @@
  * Built from scratch for clarity and reliability
  */
 
+export interface AudioRecordingOptions {
+  mimeType?: string;              // Ignored (we always normalize to wav) kept for compatibility
+  audioBitsPerSecond?: number;    // Optional bitrate hint
+  maxDuration?: number;           // Auto-stop after milliseconds
+}
+
 export interface AudioRecordingResult {
   audioBlob: Blob;           // Always WAV format (audio/wav)
   duration: number;
-  format: string;            // Will always be 'audio/wav'
+  format: string;            // 'audio/wav'
+  // Compatibility alias so legacy code expecting result.blob still works if adapted
+  blob?: Blob;
+  size?: number;
+  needsConversion?: boolean;
 }
 
 export interface RecordingState {
   isRecording: boolean;
+  isPaused: boolean;
   duration: number;
   error: string | null;
 }
@@ -20,6 +31,9 @@ export class SimpleAudioRecorder {
   private mediaStream: MediaStream | null = null;
   private audioChunks: Blob[] = [];
   private startTime: number = 0;
+  private pausedAccumulated: number = 0;
+  private pauseStarted: number | null = null;
+  private maxDurationTimer: number | null = null;
   private onStateChange?: (state: RecordingState) => void;
 
   /**
@@ -44,17 +58,21 @@ export class SimpleAudioRecorder {
    * Get current recording state
    */
   getState(): RecordingState {
-    return {
-      isRecording: this.mediaRecorder?.state === 'recording',
-      duration: this.startTime ? Date.now() - this.startTime : 0,
-      error: null
-    };
+    const isRecording = this.mediaRecorder?.state === 'recording';
+    const isPaused = this.mediaRecorder?.state === 'paused' || this.pauseStarted !== null;
+    let elapsed = 0;
+    if (this.startTime) {
+      const base = Date.now() - this.startTime;
+      const pausedPortion = this.pauseStarted ? (Date.now() - this.pauseStarted) : 0;
+      elapsed = base - (this.pausedAccumulated + pausedPortion);
+    }
+    return { isRecording, isPaused, duration: elapsed, error: null };
   }
 
   /**
    * Start recording with optimal settings for speech recognition
    */
-  async startRecording(): Promise<void> {
+  async startRecording(options: AudioRecordingOptions = {}): Promise<void> {
     if (!SimpleAudioRecorder.isSupported()) {
       throw new Error('Audio recording not supported in this browser');
     }
@@ -67,7 +85,7 @@ export class SimpleAudioRecorder {
       console.log('🎤 Starting audio recording...');
 
       // Request microphone with speech-optimized settings
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({
+  this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,          // Mono for speech
           sampleRate: 16000,        // Optimal for speech recognition
@@ -104,11 +122,14 @@ export class SimpleAudioRecorder {
       this.mediaRecorder = new MediaRecorder(this.mediaStream, mediaRecorderOptions);
 
       // Reset state
-      this.audioChunks = [];
-      this.startTime = 0;
+  this.audioChunks = [];
+  this.startTime = 0;
+  this.pausedAccumulated = 0;
+  this.pauseStarted = null;
+  if (this.maxDurationTimer) { clearTimeout(this.maxDurationTimer); this.maxDurationTimer = null; }
 
       // Set up event handlers
-      this.mediaRecorder.ondataavailable = (event) => {
+  this.mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           this.audioChunks.push(event.data);
         }
@@ -118,6 +139,13 @@ export class SimpleAudioRecorder {
         this.startTime = Date.now();
         console.log('✅ Recording started');
         this.emitStateChange();
+        if (options.maxDuration) {
+          this.maxDurationTimer = window.setTimeout(() => {
+            if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+              try { this.stopRecording(); } catch { /* ignore */ }
+            }
+          }, options.maxDuration) as unknown as number;
+        }
       };
 
       this.mediaRecorder.onerror = (event) => {
@@ -126,7 +154,7 @@ export class SimpleAudioRecorder {
       };
 
       // Start recording
-      this.mediaRecorder.start(250); // Collect data every 250ms
+  this.mediaRecorder.start(250); // Collect data every 250ms
 
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to start recording';
@@ -154,7 +182,12 @@ export class SimpleAudioRecorder {
 
       this.mediaRecorder.onstop = async () => {
         try {
-          const duration = Date.now() - this.startTime;
+          const endBase = Date.now() - this.startTime;
+          if (this.pauseStarted) {
+            this.pausedAccumulated += Date.now() - this.pauseStarted;
+            this.pauseStarted = null;
+          }
+          const duration = endBase - this.pausedAccumulated;
           let audioBlob = new Blob(this.audioChunks, {
             type: this.mediaRecorder?.mimeType || 'audio/webm'
           });
@@ -202,8 +235,11 @@ export class SimpleAudioRecorder {
 
           const result: AudioRecordingResult = {
             audioBlob,
+            blob: audioBlob, // alias
             duration,
-            format: audioBlob.type
+            format: audioBlob.type,
+            size: audioBlob.size,
+            needsConversion: !audioBlob.type.includes('wav')
           };
 
           this.cleanup();
@@ -217,6 +253,27 @@ export class SimpleAudioRecorder {
 
       this.mediaRecorder.stop();
     });
+  }
+
+  /** Pause recording */
+  pauseRecording(): void {
+    if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+      this.pauseStarted = Date.now();
+      try { this.mediaRecorder.pause(); } catch { /* ignore */ }
+      this.emitStateChange();
+    }
+  }
+
+  /** Resume recording */
+  resumeRecording(): void {
+    if (this.mediaRecorder && this.mediaRecorder.state === 'paused') {
+      if (this.pauseStarted) {
+        this.pausedAccumulated += Date.now() - this.pauseStarted;
+        this.pauseStarted = null;
+      }
+      try { this.mediaRecorder.resume(); } catch { /* ignore */ }
+      this.emitStateChange();
+    }
   }
 
   /**
@@ -371,8 +428,8 @@ export class SimpleAudioRecorder {
    * Cancel recording without returning result
    */
   cancelRecording(): void {
-    if (this.mediaRecorder?.state === 'recording') {
-      this.mediaRecorder.stop();
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      try { this.mediaRecorder.stop(); } catch { /* ignore */ }
     }
     this.cleanup();
   }
@@ -382,10 +439,7 @@ export class SimpleAudioRecorder {
    */
   private emitStateChange(error?: string): void {
     if (this.onStateChange) {
-      this.onStateChange({
-        ...this.getState(),
-        error: error || null
-      });
+      this.onStateChange({ ...this.getState(), error: error || null });
     }
   }
 
@@ -397,13 +451,17 @@ export class SimpleAudioRecorder {
       this.mediaStream.getTracks().forEach(track => track.stop());
       this.mediaStream = null;
     }
-
+    if (this.maxDurationTimer) { clearTimeout(this.maxDurationTimer); this.maxDurationTimer = null; }
     this.mediaRecorder = null;
     this.audioChunks = [];
     this.startTime = 0;
+    this.pausedAccumulated = 0;
+    this.pauseStarted = null;
     this.emitStateChange();
   }
 }
 
 // Export singleton instance
 export const simpleAudioRecorder = new SimpleAudioRecorder();
+// Compatibility alias so existing code using audioRecorderService still works after replacing imports
+export const audioRecorderService = simpleAudioRecorder;

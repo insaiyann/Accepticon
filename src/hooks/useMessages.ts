@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { TextMessage, AudioMessage, ImageMessage } from '../types/Message';
 import { indexedDBService } from '../services/storage/IndexedDBService';
-import { audioRecorderService, type AudioRecordingState } from '../services/audio/AudioRecorder';
+import { audioRecorderService, type RecordingState as AudioRecordingState } from '../services/audio/SimpleAudioRecorder';
 
 interface UseMessagesResult {
   messages: (TextMessage | AudioMessage | ImageMessage)[];
@@ -245,9 +245,7 @@ export const useAudioRecorder = (): UseAudioRecorderResult => {
 
   const startRecording = useCallback(async () => {
     try {
-      await audioRecorderService.startRecording({
-        maxDuration: 5 * 60 * 1000 // 5 minutes max
-      });
+  await audioRecorderService.startRecording({ maxDuration: 5 * 60 * 1000 });
     } catch (err) {
       setRecordingState(prev => ({
         ...prev,
@@ -259,8 +257,8 @@ export const useAudioRecorder = (): UseAudioRecorderResult => {
 
   const stopRecording = useCallback(async () => {
     try {
-      const result = await audioRecorderService.stopRecording();
-      return result.blob;
+  const result = await audioRecorderService.stopRecording();
+  return result.audioBlob || result.blob || null;
     } catch (err) {
       setRecordingState(prev => ({
         ...prev,
