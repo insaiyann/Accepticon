@@ -167,17 +167,36 @@ export class SimpleAudioRecorder {
           });
 
           // Enforce WAV format - convert if necessary
-          if (!audioBlob.type.includes('wav')) {
-            console.log('🔄 Converting audio to WAV format...');
+          const needsExplicitWav = !audioBlob.type.includes('wav');
+          if (needsExplicitWav) {
+            console.log('🔄 Converting (container not WAV) -> WAV ...');
             try {
               audioBlob = await this.convertToWav(audioBlob);
-              console.log('✅ Audio converted to WAV:', {
-                newSize: Math.round(audioBlob.size / 1024) + 'KB',
-                newFormat: audioBlob.type
-              });
-            } catch (conversionError) {
-              console.error('❌ Failed to convert to WAV:', conversionError);
-              // Continue with original format as fallback
+            } catch (e) {
+              console.error('❌ Container conversion failed – carrying on with original blob', e);
+            }
+          }
+
+          // Validate WAV header & format (expect RIFF/WAVE + 16k mono 16-bit PCM). If mismatch, reconvert via decode path.
+          if (audioBlob.type.includes('wav') && audioBlob.size > 44) {
+            try {
+              const headerBuf = await audioBlob.slice(0, 44).arrayBuffer();
+              const dv = new DataView(headerBuf);
+              const riff = String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3));
+              const wave = String.fromCharCode(dv.getUint8(8), dv.getUint8(9), dv.getUint8(10), dv.getUint8(11));
+              const fmt = String.fromCharCode(dv.getUint8(12), dv.getUint8(13), dv.getUint8(14), dv.getUint8(15));
+              const audioFormat = dv.getUint16(20, true);
+              const numChannels = dv.getUint16(22, true);
+              const sampleRate = dv.getUint32(24, true);
+              const bitsPerSample = dv.getUint16(34, true);
+              const validCore = riff === 'RIFF' && wave === 'WAVE' && fmt === 'fmt ' && audioFormat === 1;
+              const isIdeal = validCore && numChannels === 1 && sampleRate === 16000 && bitsPerSample === 16;
+              if (!isIdeal) {
+                console.log('⚠️ WAV not in ideal format – reconverting', { numChannels, sampleRate, bitsPerSample });
+                try { audioBlob = await this.convertToWav(audioBlob); } catch (e) { console.warn('⚠️ Reconversion failed, proceeding with current blob', e); }
+              }
+            } catch (e) {
+              console.warn('⚠️ Failed to parse WAV header for validation', e);
             }
           }
 
