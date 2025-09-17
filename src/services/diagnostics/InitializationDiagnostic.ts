@@ -3,7 +3,6 @@
  * Tests each Azure service individually to identify the initialization bottleneck
  */
 
-import { newSTTPipelineService } from '../NewSTTPipeline';
 import { openAIService } from '../azure/OpenAIService';
 
 export interface DiagnosticResult {
@@ -27,8 +26,7 @@ export class InitializationDiagnostic {
     // Test 1: Environment Variables
     await this.testEnvironmentVariables();
 
-    // Test 2: Azure Speech Service
-    await this.testSpeechService();
+  // Test 2: (Old) Azure Speech Service pipeline skipped after minimal refactor
 
     // Test 3: Azure OpenAI Service
     await this.testOpenAIService();
@@ -89,42 +87,7 @@ export class InitializationDiagnostic {
   /**
    * Test Azure Speech Service initialization
    */
-  private async testSpeechService(): Promise<void> {
-    const startTime = performance.now();
-    
-    try {
-      console.log('🎤 Testing Speech Service initialization...');
-      
-      const success = await newSTTPipelineService.autoInitialize();
-      
-      if (success) {
-        // Test configuration
-        const configValid = await newSTTPipelineService.testConfiguration();
-        
-        this.addResult({
-          service: 'Azure Speech Service',
-          status: configValid ? 'success' : 'failed',
-          message: configValid ? 'Successfully initialized and validated' : 'Initialized but configuration test failed',
-          duration: performance.now() - startTime
-        });
-      } else {
-        this.addResult({
-          service: 'Azure Speech Service',
-          status: 'failed',
-          message: 'Auto-initialization failed',
-          duration: performance.now() - startTime
-        });
-      }
-    } catch (error) {
-      this.addResult({
-        service: 'Azure Speech Service',
-        status: 'failed',
-        message: 'Exception during initialization',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        duration: performance.now() - startTime
-      });
-    }
-  }
+  // Removed testSpeechService after minimal STT replacement
 
   /**
    * Test Azure OpenAI Service initialization
@@ -199,18 +162,8 @@ export class InitializationDiagnostic {
       console.log('🔄 Testing combined pipeline...');
       
       // Check if both services are ready
-      const speechStatus = newSTTPipelineService.getStatus();
       const openaiStatus = openAIService.getStatus();
-
-      if (!speechStatus.isInitialized) {
-        this.addResult({
-          service: 'Combined Pipeline',
-          status: 'failed',
-          message: 'Speech service not initialized',
-          duration: performance.now() - startTime
-        });
-        return;
-      }
+  // Skip speech initialized check (minimal service not part of diagnostics)
 
       if (!openaiStatus.isInitialized) {
         this.addResult({

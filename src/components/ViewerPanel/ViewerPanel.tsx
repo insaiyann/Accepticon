@@ -1,10 +1,13 @@
 import React, { useEffect } from 'react';
 import MermaidViewer from '../MermaidViewer/MermaidViewer';
-import { useProcessingPipelineContext } from '../../hooks/useProcessingPipelineContext';
 import './ViewerPanel.css';
 
 export const ViewerPanel: React.FC = () => {
-  const { currentMermaidCode, currentTitle, error, clearError } = useProcessingPipelineContext();
+  // Pipeline hook removed; viewer will need mermaid code via higher-level state later.
+  const [mermaidCode] = React.useState<string | undefined>(undefined);
+  const [title] = React.useState<string | undefined>(undefined);
+  const [error, setError] = React.useState<string | null>(null);
+  const clearError = React.useCallback(()=> setError(null),[]);
 
   const handleDiagramError = (error: string) => {
     console.error('Diagram rendering error:', error);
@@ -25,8 +28,8 @@ export const ViewerPanel: React.FC = () => {
   return (
     <div className="viewer-panel">
       <MermaidViewer 
-        mermaidCode={currentMermaidCode || undefined}
-        title={currentTitle || undefined}
+        mermaidCode={mermaidCode}
+        title={title}
         onError={handleDiagramError}
         className="viewer-panel-mermaid"
       />

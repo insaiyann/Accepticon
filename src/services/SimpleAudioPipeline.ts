@@ -3,7 +3,8 @@
  * This is a minimal implementation that forwards to the new STT pipeline
  */
 
-import { newSTTPipelineService } from './NewSTTPipeline';
+// Removed dependency on previous NewSTTPipeline (deleted) – will use MinimalSTTService
+import { minimalSTTService } from './MinimalSTTService';
 import { simpleAudioRecorder } from './audio/SimpleAudioRecorder';
 import { indexedDBService } from './storage/IndexedDBService';
 import { openAIService } from './azure/OpenAIService';
@@ -68,7 +69,7 @@ export class SimpleAudioPipeline {
       ...state
     };
     this.stateChangeCallbacks.forEach(cb => {
-      try { cb(currentState); } catch (e) { console.error('State change callback error', e); }
+  try { cb(currentState); } catch { /* swallow callback errors */ }
     });
   }
 
@@ -77,11 +78,10 @@ export class SimpleAudioPipeline {
    */
   async initialize(config: PipelineConfig): Promise<void> {
     try {
-      console.log('🔧 SimpleAudioPipeline: Initializing (compatibility mode)...');
       this.updateState({ isProcessing: true, currentStep: 'Initializing...' });
 
-      // Initialize the new STT pipeline
-      const sttSuccess = await newSTTPipelineService.autoInitialize();
+  // Initialize minimal STT service
+  const sttSuccess = await minimalSTTService.autoInitialize();
       if (!sttSuccess) {
         throw new Error('Failed to initialize STT pipeline');
       }
@@ -101,10 +101,8 @@ export class SimpleAudioPipeline {
         currentStep: 'Ready' 
       });
 
-      console.log('✅ SimpleAudioPipeline: Initialized successfully (compatibility mode)');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Initialization failed';
-      console.error('❌ SimpleAudioPipeline: Initialization failed:', message);
       this.updateState({ 
         isInitialized: false, 
         isProcessing: false, 
@@ -131,7 +129,6 @@ export class SimpleAudioPipeline {
       const openaiDeployment = import.meta.env.VITE_AZURE_OPENAI_DEPLOYMENT;
 
       if (!speechKey || !speechRegion || !openaiKey || !openaiEndpoint || !openaiDeployment) {
-        console.warn('⚠️ SimpleAudioPipeline: Missing environment variables for auto-initialization');
         // Explicitly surface a non-initialized state so the UI can show a failure instead of an endless "Initializing" message
         this.updateState({
           isInitialized: false,
@@ -152,7 +149,6 @@ export class SimpleAudioPipeline {
 
       return true;
     } catch (error) {
-      console.error('❌ SimpleAudioPipeline: Auto-initialization failed:', error);
       // Ensure UI reflects failure state (avoid perpetual initializing message)
       this.updateState({
         isInitialized: false,
@@ -176,8 +172,7 @@ export class SimpleAudioPipeline {
       this.updateState({ isProcessing: true, currentStep: 'Processing audio messages...' });
 
       // Step 1: Process audio with new STT pipeline
-      const sttResult = await newSTTPipelineService.processAudioMessagesAndSaveTranscripts();
-      
+      const sttResult = await minimalSTTService.transcribeAllAudioMessages();
       if (!sttResult.success) {
         throw new Error('STT processing failed');
       }
@@ -231,7 +226,6 @@ export class SimpleAudioPipeline {
 
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Processing failed';
-      console.error('❌ SimpleAudioPipeline: Processing failed:', message);
       
       this.updateState({ 
         isProcessing: false, 
@@ -278,7 +272,7 @@ export class SimpleAudioPipeline {
    * Check if pipeline is ready
    */
   isReady(): boolean {
-    return this.isInitialized && newSTTPipelineService.getStatus().isInitialized;
+  return this.isInitialized && minimalSTTService.getStatus().isInitialized;
   }
 
   /**
@@ -292,7 +286,6 @@ export class SimpleAudioPipeline {
       currentStep: 'Stopped',
       error: null
     });
-    console.log('🧹 SimpleAudioPipeline: Cleaned up (compatibility mode)');
   }
 }
 

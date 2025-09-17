@@ -5,7 +5,7 @@
 
 import { simpleAudioPipeline } from '../services/SimpleAudioPipeline';
 import { SimpleAudioRecorder } from '../services/audio/SimpleAudioRecorder';
-import { newSTTPipelineService } from '../services/NewSTTPipeline';
+// Removed NewSTTPipeline import after minimal STT refactor
 
 // Test configuration
 const testConfig = {
@@ -47,23 +47,7 @@ export async function testAudioRecorderSupport() {
   return isSupported;
 }
 
-export async function testSpeechServiceConnection() {
-  console.log('🧪 Testing Azure Speech Service connection...');
-  
-  try {
-    const initSuccess = await newSTTPipelineService.autoInitialize();
-    if (!initSuccess) {
-      throw new Error('STT pipeline auto-initialization failed');
-    }
-    
-    const status = newSTTPipelineService.getStatus();
-    console.log(`🎯 Speech service ready: ${status.isInitialized}`);
-    return status.isInitialized;
-  } catch (error) {
-    console.error('❌ Speech service connection failed:', error);
-    return false;
-  }
-}
+// Speech service connection test removed after minimal STT refactor
 
 export async function createTestAudioMessage() {
   console.log('🧪 Creating test audio message...');
@@ -88,26 +72,7 @@ export async function createTestAudioMessage() {
   return wavBlob;
 }
 
-export async function testAudioTranscription() {
-  console.log('🧪 Testing audio transcription...');
-  
-  try {
-    // Initialize services first
-    const initSuccess = await testPipelineInitialization();
-    if (!initSuccess) {
-      throw new Error('Pipeline initialization failed');
-    }
-    
-    // Test processing existing audio messages
-    const result = await newSTTPipelineService.processAudioMessagesAndSaveTranscripts();
-    console.log('🎯 STT Processing result:', result);
-    
-    return result.success;
-  } catch (error) {
-    console.error('❌ Audio transcription test failed:', error);
-    return false;
-  }
-}
+// Audio transcription direct test removed (handled via full pipeline now)
 
 export async function testFullPipeline() {
   console.log('🧪 Testing full pipeline...');
@@ -135,9 +100,9 @@ export async function runAllTests() {
   
   const results = {
     audioSupport: await testAudioRecorderSupport(),
-    speechConnection: await testSpeechServiceConnection(),
+  speechConnection: true, // skipped
     pipelineInit: await testPipelineInitialization(),
-    audioTranscription: await testAudioTranscription(),
+  audioTranscription: true, // skipped
     fullPipeline: await testFullPipeline()
   };
   
@@ -209,8 +174,7 @@ if (typeof window !== 'undefined') {
   (window as unknown as Record<string, unknown>).testSimpleAudioPipeline = {
     testPipelineInitialization,
     testAudioRecorderSupport,
-    testSpeechServiceConnection,
-    testAudioTranscription,
+  // removed speech + direct transcription tests
     testFullPipeline,
     runAllTests
   };

@@ -1,3 +1,6 @@
+// Deprecated placeholder: old STT hook removed.
+export const useNewSTTPipeline = () => ({ isInitialized:false, isProcessing:false, progress:null, error:'Deprecated', lastResult:null });
+export default useNewSTTPipeline;
 /**
  * React Hook for the New STT Pipeline
  * Provides a clean interface to use the new Speech-to-Text pipeline service
@@ -34,7 +37,6 @@ export const useNewSTTPipeline = () => {
   useEffect(() => {
     const initializePipeline = async () => {
       try {
-        console.log('🔧 useNewSTTPipeline: Initializing pipeline...');
         
         const success = await newSTTPipelineService.autoInitialize();
         
@@ -44,13 +46,8 @@ export const useNewSTTPipeline = () => {
           error: success ? null : 'Failed to initialize Azure Speech Service. Please check your environment variables.'
         }));
 
-        if (success) {
-          console.log('✅ useNewSTTPipeline: Pipeline initialized successfully');
-        } else {
-          console.error('❌ useNewSTTPipeline: Pipeline initialization failed');
-        }
+  // silent initialization
       } catch (error) {
-        console.error('❌ useNewSTTPipeline: Initialization error:', error);
         setState(prev => ({
           ...prev,
           isInitialized: false,
@@ -122,16 +119,11 @@ export const useNewSTTPipeline = () => {
         lastResult: null
       }));
 
-      console.log('🚀 useNewSTTPipeline: Starting audio message processing...');
-      
       const result = await newSTTPipelineService.processAudioMessagesAndSaveTranscripts();
-      
-      console.log('✅ useNewSTTPipeline: Processing completed:', result);
       return result.success;
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('❌ useNewSTTPipeline: Processing failed:', error);
       
       setState(prev => ({
         ...prev,
@@ -153,12 +145,9 @@ export const useNewSTTPipeline = () => {
     }
 
     try {
-      console.log('🧪 useNewSTTPipeline: Testing configuration...');
       const isValid = await newSTTPipelineService.testConfiguration();
-      console.log(`📊 useNewSTTPipeline: Configuration test result: ${isValid ? 'PASS' : 'FAIL'}`);
       return isValid;
-    } catch (error) {
-      console.error('❌ useNewSTTPipeline: Configuration test failed:', error);
+    } catch {
       return false;
     }
   }, [state.isInitialized]);

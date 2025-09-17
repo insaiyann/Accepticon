@@ -1,3 +1,6 @@
+// Deprecated placeholder for removed pipeline hook
+export const useSimpleAudioPipeline = () => ({ isInitialized:false, isProcessing:false, currentStep:'Removed', error:'Deprecated', currentMermaidCode:null, currentTitle:null, generateMermaidFromAllThreads: async()=>false, recordAudio: async()=>false, manualInitialize: async()=>false, clearError:()=>{}, clearDiagram:()=>{}, getStatistics:()=>null, isReady:()=>false });
+export default useSimpleAudioPipeline;
 /**
  * Simple Audio Pipeline Hook - Clean React hook for the new pipeline
  * Built from scratch for reliability and simplicity
@@ -39,7 +42,6 @@ export const useSimpleAudioPipeline = () => {
    * Initialize the pipeline on mount
    */
   useEffect(() => {
-    console.log('🚀 useSimpleAudioPipeline: Initializing...');
 
     // Set up pipeline state change callback
     simpleAudioPipeline.setStateChangeCallback(handlePipelineStateChange);
@@ -90,7 +92,6 @@ export const useSimpleAudioPipeline = () => {
     }
 
     try {
-      console.log('🎯 useSimpleAudioPipeline: Starting Mermaid generation...');
       
       // Clear previous results and errors
       setState(prev => ({
@@ -112,16 +113,13 @@ export const useSimpleAudioPipeline = () => {
       }));
 
       if (result.success) {
-        console.log('✅ useSimpleAudioPipeline: Mermaid generation completed successfully');
         return true;
       } else {
-        console.error('❌ useSimpleAudioPipeline: Mermaid generation failed:', result.error);
         return false;
       }
 
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      console.error('❌ useSimpleAudioPipeline: Exception during generation:', message);
       
       setState(prev => ({
         ...prev,

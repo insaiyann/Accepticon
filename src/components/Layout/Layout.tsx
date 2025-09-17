@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import ConfigurationPanel from '../ConfigurationPanel/ConfigurationPanel';
-import { useProcessingPipelineContext } from '../../hooks/useProcessingPipelineContext';
+import { minimalSTTService } from '../../services/MinimalSTTService';
 import { Icon } from '../common/Icon';
 
 interface LayoutProps {
@@ -9,7 +9,8 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
-  const { isInitialized } = useProcessingPipelineContext();
+  const [isInitialized, setIsInitialized] = React.useState(false);
+  React.useEffect(()=>{ (async()=>{ const r= await minimalSTTService.initializeAll(); setIsInitialized(r.stt && r.openai); })(); },[]);
 
   const handleConfigSave = async (credentials: {
     speechKey: string;

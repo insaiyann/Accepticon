@@ -4,8 +4,8 @@ import { ThreadTree } from '../ThreadTree/ThreadTree';
 import { ChatOverlay } from '../ChatOverlay/ChatOverlay';
 import { useMessages } from '../../hooks/useMessages';
 import { useThreads } from '../../hooks/useThreads';
-import { useProcessingPipelineContext } from '../../hooks/useProcessingPipelineContext';
-import { useNewSTTPipeline } from '../../hooks/useNewSTTPipeline';
+// Removed old STT hook – using minimal service directly
+import { minimalSTTService } from '../../services/MinimalSTTService';
 import { indexedDBService } from '../../services/storage/IndexedDBService';
 import type { Thread } from '../../types/Thread';
 import type { AudioMessage, TextMessage, ImageMessage } from '../../types/Message';
@@ -144,26 +144,51 @@ export const InputPanel: React.FC = () => {
     setSelectedThread(null);
   };
 
-  const {
-    isProcessing: pipelineProcessing,
-    currentStep,
-    error: pipelineError,
-    isInitialized,
-    generateMermaidFromAllThreads,
-    clearError
-  } = useProcessingPipelineContext();
+  // Replaced pipeline context with minimal unified service
+  const [pipelineInitialized, setPipelineInitialized] = React.useState(false);
+  const [pipelineProcessing, setPipelineProcessing] = React.useState(false);
+  const [pipelineError, setPipelineError] = React.useState<string | null>(null);
+  const [currentStep, setCurrentStep] = React.useState<string>('Ready');
+  const clearError = () => setPipelineError(null);
 
-  // New STT Pipeline Hook
-  const {
-    isInitialized: sttInitialized,
-    isProcessing: sttProcessing,
-    progress: sttProgress,
-    error: sttError,
-    lastResult: sttResult,
-    processAudioMessages,
-    clearError: clearSTTError,
-    progressPercentage
-  } = useNewSTTPipeline();
+  React.useEffect(()=>{ (async()=>{ const r = await minimalSTTService.initializeAll(); setPipelineInitialized(r.stt && r.openai); if(!(r.stt && r.openai)) setPipelineError('Failed to initialize Azure services'); })(); },[]);
+
+  // Minimal STT state (very lightweight)
+  const [sttInitialized, setSttInitialized] = React.useState(false);
+  const [sttProcessing, setSttProcessing] = React.useState(false);
+  const [sttError, setSttError] = React.useState<string | null>(null);
+  const [sttResult, setSttResult] = React.useState<{successful:number; failed:number; errors:string[]}|null>(null);
+  // No granular progress variables in minimal version
+
+  React.useEffect(() => {
+    (async () => {
+      const ok = await minimalSTTService.autoInitialize();
+      setSttInitialized(ok);
+      if (!ok) setSttError('Failed to initialize Speech Service');
+    })();
+  }, []);
+
+  const clearSTTError = () => setSttError(null);
+
+  const processAudioMessages = async (): Promise<boolean> => {
+    if (!sttInitialized) {
+      setSttError('STT not initialized');
+      return false;
+    }
+    try {
+      setSttProcessing(true);
+      setSttError(null);
+      setSttResult(null);
+      const res = await minimalSTTService.transcribeAllAudioMessages();
+      setSttResult({ successful: res.recognized, failed: res.failed, errors: [] });
+      setSttProcessing(false);
+      return res.success;
+    } catch (e) {
+      setSttProcessing(false);
+      setSttError(e instanceof Error ? e.message : 'Unknown STT error');
+      return false;
+    }
+  };
 
   const handleGenerateDiagram = async () => {
     if (messages.length === 0) {
@@ -171,7 +196,7 @@ export const InputPanel: React.FC = () => {
       return;
     }
 
-    if (!isInitialized) {
+  if (!pipelineInitialized) {
       alert('Processing pipeline not initialized. Please check your Azure credentials.');
       return;
     }
@@ -208,20 +233,21 @@ export const InputPanel: React.FC = () => {
       const messageIds = messages.map(msg => msg.id);
       console.log('🔗 InputPanel: Message IDs to process:', messageIds);
       
-      const success = await generateMermaidFromAllThreads();
-      
-      if (success) {
-        console.log('✅ InputPanel: Diagram generated successfully');
-      } else {
-        console.warn('⚠️ InputPanel: No diagram returned');
-      }
+      setPipelineProcessing(true); setCurrentStep('Generating diagram...');
+      try {
+  await minimalSTTService.generateDiagramFromStoredMessages();
+        console.log('✅ InputPanel: Diagram generated');
+      } catch(e) {
+        const msg = e instanceof Error ? e.message : 'Diagram generation failed';
+        setPipelineError(msg); console.error('❌ Diagram generation failed', msg);
+      } finally { setPipelineProcessing(false); setCurrentStep('Ready'); }
     } catch (error) {
       console.error('❌ InputPanel: Failed to generate diagram:', error);
     }
   };
 
   const hasMessages = messages.length > 0;
-  const canGenerate = hasMessages && !pipelineProcessing && !sttProcessing && isInitialized && sttInitialized;
+  const canGenerate = hasMessages && !pipelineProcessing && !sttProcessing && pipelineInitialized && sttInitialized;
 
   return (
     <div className="input-panel">
@@ -281,21 +307,10 @@ export const InputPanel: React.FC = () => {
                 animation: 'spin 1s linear infinite'
               }}></div>
               <span>
-                {sttProcessing 
-                  ? `Processing audio transcriptions${sttProgress ? ` (${progressPercentage}%)` : '...'}`
-                  : currentStep || 'Processing...'
-                }
+                {sttProcessing ? 'Processing audio transcriptions...' : currentStep || 'Processing...'}
               </span>
             </div>
-            {sttProgress && (
-              <div style={{ 
-                marginTop: '0.5rem', 
-                fontSize: '0.875rem',
-                opacity: 0.8 
-              }}>
-                {sttProgress.message} ({sttProgress.current}/{sttProgress.total})
-              </div>
-            )}
+            {/* No detailed progress in minimal STT */}
           </div>
         )}
 
@@ -331,7 +346,7 @@ export const InputPanel: React.FC = () => {
           <p className="generate-info">
             {(() => {
               // Improve status messaging to avoid perpetual "Initializing" when initialization already failed
-              if (!isInitialized) {
+              if (!pipelineInitialized) {
                 if (pipelineError) {
                   return 'Azure services not initialized – check configuration.';
                 }
