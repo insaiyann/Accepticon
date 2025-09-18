@@ -2,9 +2,18 @@ import React, { useEffect } from 'react';
 import MermaidViewer from '../MermaidViewer/MermaidViewer';
 import './ViewerPanel.css';
 import { useDiagram } from '../../context/DiagramContext';
+import { useViewerContent } from '../../context/ViewerContentContext';
+import MarkdownViewer from '../common/MarkdownViewer';
 
 export const ViewerPanel: React.FC = () => {
   const { mermaidCode, title } = useDiagram();
+  const {
+    runMode,
+    diagram: diagramState,
+    summary: summaryState,
+    plan: planState,
+    technicals: technicalsState
+  } = useViewerContent();
   const [error, setError] = React.useState<string | null>(null);
   const clearError = React.useCallback(()=> setError(null),[]);
 
@@ -35,6 +44,19 @@ export const ViewerPanel: React.FC = () => {
     }
   }, [error, clearError]);
 
+  // Trigger generation when switching to a tab without content
+  React.useEffect(()=> {
+    // prime diagram on mount
+    runMode('diagram');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  React.useEffect(()=> {
+    if (activeTab === 'summary' && !summaryState.loading && !summaryState.markdown && !summaryState.error) runMode('summary');
+    if (activeTab === 'plan' && !planState.loading && !planState.markdown && !planState.error) runMode('plan');
+    if (activeTab === 'technicals' && !technicalsState.loading && !technicalsState.markdown && !technicalsState.error) runMode('technicals');
+  }, [activeTab, summaryState, planState, technicalsState, runMode]);
+
   return (
     <div className="viewer-panel">
       {/* Tab bar */}
@@ -55,38 +77,43 @@ export const ViewerPanel: React.FC = () => {
       {/* Content area */}
       <div className="viewer-content" role="tabpanel" aria-live="polite">
         {activeTab === 'diagram' && (
-          <MermaidViewer 
-            mermaidCode={mermaidCode}
-            title={title}
-            onError={handleDiagramError}
-            className="viewer-panel-mermaid"
-          />
+          <div>
+            <MermaidViewer 
+              mermaidCode={diagramState.mermaidCode || mermaidCode}
+              title={title}
+              onError={handleDiagramError}
+              className="viewer-panel-mermaid"
+            />
+            {diagramState.loading && <div className="loading-note">Generating diagram...</div>}
+            {diagramState.error && <div className="error-note">{diagramState.error}</div>}
+          </div>
         )}
         {activeTab === 'summary' && (
-          <div className="tab-placeholder">
-            <h3>Source summary</h3>
-            <p>This tab will display an auto-generated summary of the source or conversation context.</p>
-            <p className="todo-note">TODO: Integrate summarization pipeline.</p>
-          </div>
+          <MarkdownViewer
+            markdown={summaryState.markdown}
+            loading={summaryState.loading}
+            error={summaryState.error}
+            onRetry={()=> runMode('summary', { force: true })}
+            title="Source Summary"
+          />
         )}
         {activeTab === 'plan' && (
-          <div className="tab-placeholder">
-            <h3>Implementation plan</h3>
-            <p>High level and step-by-step implementation plan for the current task will appear here.</p>
-            <ul>
-              <li>Capture user goal</li>
-              <li>Break into actionable steps</li>
-              <li>Track progress & status</li>
-            </ul>
-            <p className="todo-note">TODO: Hook into planning context state.</p>
-          </div>
+          <MarkdownViewer
+            markdown={planState.markdown}
+            loading={planState.loading}
+            error={planState.error}
+            onRetry={()=> runMode('plan', { force: true })}
+            title="Implementation Plan"
+          />
         )}
         {activeTab === 'technicals' && (
-          <div className="tab-placeholder">
-            <h3>Technicals</h3>
-            <p>Technical diagnostics, performance metrics, and debug info will show here.</p>
-            <p className="todo-note">TODO: Add diagnostics feed.</p>
-          </div>
+          <MarkdownViewer
+            markdown={technicalsState.markdown}
+            loading={technicalsState.loading}
+            error={technicalsState.error}
+            onRetry={()=> runMode('technicals', { force: true })}
+            title="Technicals"
+          />
         )}
       </div>
 

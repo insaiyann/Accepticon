@@ -235,6 +235,44 @@ window.debugSpeech.testCompleteAudioPipeline()
 - **Template System**: Pre-built diagram templates for common use cases
 - **Export Options**: Additional export formats (PDF, PNG, SVG)
 
+## 🤖 AI Viewer Modes (Multi-Mode Content Generation)
+
+The Viewer Panel now supports multiple AI-powered tabs, each generated lazily and cached when inputs (messages) stay the same.
+
+Modes:
+
+1. Diagram (existing) – Mermaid diagram extracted from model response (first ```mermaid block).
+2. Summary – Analytical overview with sections: Overview, Key Entities, Flows, Risks.
+3. Plan – Implementation plan beginning with `# Implementation Plan` and sections: Goal, High-Level Steps, Detailed Steps, Considerations.
+4. Technicals – Architecture deep dive with sections: Architecture, Data Model, Processing Pipeline, Potential Optimizations, Open Questions.
+
+Behavior:
+
+- Tab activation triggers generation once; subsequent visits use cached result (two‑tier cache: in‑memory L1 + persistent IndexedDB L2).
+- Persistent cache survives reloads; memory cache promotes persistent hits for faster subsequent access.
+- Force refresh button (Retry) regenerates content ignoring caches and repopulates them.
+- Non‑diagram modes request a single fenced ```markdown block for reliable parsing.
+- Diagram tab continues to use the existing Mermaid renderer (enhanced to work with the new context pipeline).
+
+Extensibility:
+
+- Add a new mode by extending the `AIViewerMode` union, providing a system prompt, user prompt builder, and post‑processor in `OpenAIService`.
+- Caching automatically incorporates the prompt version + mode + source hash (SHA‑256 truncated) ensuring invalidation when prompts evolve.
+- Retention: opportunistic cleanup trims old entries and caps per‑mode stored items.
+
+Limitations (current iteration):
+
+- No streaming responses; waits for full completion.
+- Basic markdown rendering (no advanced parsing/sanitization yet).
+- Cache clear UI not exposed yet (programmatic `openAIService.clearCache(mode?)`).
+
+Example (Summary mode raw fenced output expected):
+
+```markdown
+# Overview
+... content ...
+```
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

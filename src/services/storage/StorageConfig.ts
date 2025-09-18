@@ -1,6 +1,6 @@
 // Database configuration
 export const DB_NAME = 'MermaidPWADB';
-export const DB_VERSION = 3; // Increment version for image support and enhanced threads
+export const DB_VERSION = 4; // v4: add modeCache store for multi-mode AI persistent caching
 
 // Object store names
 export const STORES = {
@@ -11,6 +11,7 @@ export const STORES = {
   PROCESSING_QUEUE: 'processingQueue',
   DIAGRAM_CACHE: 'diagramCache',
   APP_SETTINGS: 'appSettings'
+  , MODE_CACHE: 'modeCache'
 } as const;
 
 // Database schema definition
@@ -144,6 +145,28 @@ export interface DBSchema {
       key: string;
       value: unknown;
       updated: number;
+    };
+  };
+
+  [STORES.MODE_CACHE]: {
+    key: string; // id
+    value: {
+      id: string;
+      mode: string; // AIViewerMode
+      inputHash: string;
+      model: string;
+      promptVersion: string;
+      mermaidCode?: string;
+      markdown?: string;
+      raw: string;
+      tokensUsed: number;
+      generatedAt: number;
+      sourceSize: number;
+    };
+    indexes: {
+      inputHash: string;
+      mode: string;
+      generatedAt: number;
     };
   };
 }

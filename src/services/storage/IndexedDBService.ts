@@ -76,8 +76,9 @@ class IndexedDBService {
       STORES.IMAGE_MESSAGES,
       STORES.THREADS,
       STORES.PROCESSING_QUEUE,
-      STORES.DIAGRAM_CACHE,
-      STORES.APP_SETTINGS
+  STORES.DIAGRAM_CACHE,
+  STORES.APP_SETTINGS,
+  STORES.MODE_CACHE
     ];
 
     const missingStores = requiredStores.filter(store => !this.db!.objectStoreNames.contains(store));
@@ -172,6 +173,14 @@ class IndexedDBService {
     // App settings store
     if (!db.objectStoreNames.contains(STORES.APP_SETTINGS)) {
       db.createObjectStore(STORES.APP_SETTINGS, { keyPath: 'key' });
+    }
+
+    // Mode cache store
+    if (!db.objectStoreNames.contains(STORES.MODE_CACHE)) {
+      const modeStore = db.createObjectStore(STORES.MODE_CACHE, { keyPath: 'id' });
+      modeStore.createIndex('inputHash', 'inputHash', { unique: false });
+      modeStore.createIndex('mode', 'mode', { unique: false });
+      modeStore.createIndex('generatedAt', 'generatedAt', { unique: false });
     }
   }
 
@@ -1406,7 +1415,8 @@ class IndexedDBService {
       STORES.THREADS,
       STORES.PROCESSING_QUEUE,
       STORES.DIAGRAM_CACHE,
-      STORES.APP_SETTINGS
+  STORES.APP_SETTINGS,
+  STORES.MODE_CACHE
     ];
 
     const availableStores = this.db ? Array.from(this.db.objectStoreNames) : [];
@@ -1431,6 +1441,105 @@ class IndexedDBService {
       this.db = null;
       this.isInitialized = false;
     }
+  }
+
+  /**
+   * ===== MODE CACHE (multi-mode AI) =====
+   */
+  async putModeCache(entry: {
+    mode: string;
+    inputHash: string;
+    model: string;
+    promptVersion: string;
+    mermaidCode?: string;
+    markdown?: string;
+    raw: string;
+    tokensUsed: number;
+    sourceSize: number;
+  }): Promise<void> {
+    await this.ensureInitialized();
+    this.validateObjectStores([STORES.MODE_CACHE]);
+    const rec = { id: `mode_${Date.now()}_${Math.random().toString(36).slice(2)}`, generatedAt: Date.now(), ...entry };
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction([STORES.MODE_CACHE], 'readwrite');
+      const store = tx.objectStore(STORES.MODE_CACHE);
+      const req = store.add(rec);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(new Error('Failed to add mode cache record'));
+    });
+  }
+
+  async getModeCache(inputHash: string): Promise<{ id: string; mode: string; inputHash: string; generatedAt: number; mermaidCode?: string; markdown?: string; raw: string; tokensUsed: number; model: string; promptVersion: string; sourceSize: number; } | null> {
+    await this.ensureInitialized();
+    this.validateObjectStores([STORES.MODE_CACHE]);
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction([STORES.MODE_CACHE], 'readonly');
+      const store = tx.objectStore(STORES.MODE_CACHE);
+      const idx = store.index('inputHash');
+      const req = idx.get(inputHash);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(new Error('Failed to read mode cache record'));
+    });
+  }
+
+  async cleanupOldModeCache(maxAgeMs = 30*24*60*60*1000, perModeCap = 50): Promise<void> {
+    await this.ensureInitialized();
+    this.validateObjectStores([STORES.MODE_CACHE]);
+    const cutoff = Date.now() - maxAgeMs;
+    return new Promise((resolve) => {
+      const tx = this.db!.transaction([STORES.MODE_CACHE], 'readwrite');
+      const store = tx.objectStore(STORES.MODE_CACHE);
+      const idx = store.index('generatedAt');
+      const req = idx.openCursor();
+      const perMode: Record<string, { id: string; generatedAt: number }[]> = {};
+      req.onsuccess = (ev) => {
+        const cursor = (ev.target as IDBRequest).result as IDBCursorWithValue | null;
+        if (cursor) {
+          const val = cursor.value as { id: string; mode: string; generatedAt: number };
+          if (val.generatedAt < cutoff) {
+            cursor.delete();
+          } else {
+            perMode[val.mode] = perMode[val.mode] || [];
+            perMode[val.mode].push({ id: val.id, generatedAt: val.generatedAt });
+          }
+          cursor.continue();
+        } else {
+          Object.values(perMode).forEach(list => {
+            list.sort((a,b)=> b.generatedAt - a.generatedAt);
+            list.slice(perModeCap).forEach(old => store.delete(old.id));
+          });
+          resolve();
+        }
+      };
+      req.onerror = () => resolve();
+    });
+  }
+
+  async clearModeCache(mode?: string): Promise<void> {
+    await this.ensureInitialized();
+    this.validateObjectStores([STORES.MODE_CACHE]);
+    return new Promise((resolve) => {
+      const tx = this.db!.transaction([STORES.MODE_CACHE], 'readwrite');
+      const store = tx.objectStore(STORES.MODE_CACHE);
+      if (!mode) {
+        const clearReq = store.clear();
+        clearReq.onsuccess = () => resolve();
+        clearReq.onerror = () => resolve();
+        return;
+      }
+      const idx = store.index('mode');
+      const req = idx.openCursor(IDBKeyRange.only(mode));
+      req.onsuccess = (ev) => {
+        const cursor = (ev.target as IDBRequest).result as IDBCursorWithValue | null;
+        if (cursor) {
+          cursor.delete();
+          cursor.continue();
+        } else {
+          resolve();
+        }
+      };
+      req.onerror = () => resolve();
+    });
   }
 }
 
